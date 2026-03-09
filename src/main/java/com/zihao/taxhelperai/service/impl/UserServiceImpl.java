@@ -21,11 +21,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 用户服务实现
@@ -42,42 +43,120 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     public static final String SALT = "zihao";
 
+    // 手机号正则（11位，以1开头）
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^1[3-9]\\d{9}$");
+    // 身份证号正则（18位，最后一位支持X/x）
+    private static final Pattern ID_CARD_PATTERN = Pattern.
+            compile("^[1-9]\\d{5}(18|19|20)\\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\\d{3}[0-9Xx]$");
+    // 真实姓名正则（2-10位中文，支持少数名族·分隔）
+    private static final Pattern REAL_NAME_PATTERN = Pattern.
+            compile("^[\\u4e00-\\u9fa5]{2,10}(·[\\u4e00-\\u9fa5]{2,10}){0,2}$");
+
     @Override
-    public long userRegister(String userAccount, String userPassword, String checkPassword) {
-        // 1. 校验
-        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
+    public long userRegister(String userAccount, String userPassword, String checkPassword,
+                             String realName, String idCard, String taxRegion) {
+        // 1. 基础参数非空校验
+        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword, realName, idCard)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号/密码/真实姓名/身份证号不能为空");
         }
-        if (userAccount.length() < 4) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户账号过短");
+
+        // 2. 手机号（userAccount）专属校验
+        if (!isValidPhone(userAccount)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "手机号格式错误（需为11位有效手机号）");
         }
+
+        // 3. 真实姓名校验
+        if (!isValidRealName(realName)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "真实姓名格式错误（需2-10位中文，支持·分隔）");
+        }
+
+        // 4. 身份证号校验
+        if (!isValidIdCard(idCard)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "身份证号格式错误（需为18位有效身份证号）");
+        }
+
+        // 5. 密码校验（原有逻辑保留）
         if (userPassword.length() < 6 || checkPassword.length() < 6) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码过短");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码过短（需至少6位）");
         }
-        // 密码和校验密码相同
         if (!userPassword.equals(checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
+
+        // 6. 账号唯一性校验（手机号不能重复）
         synchronized (userAccount.intern()) {
-            // 账户不能重复
             QueryWrapper<User> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("userAccount", userAccount);
             long count = this.baseMapper.selectCount(queryWrapper);
             if (count > 0) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "手机号已注册");
             }
-            // 2. 加密
+
+            // 7. 密码加密（原有逻辑保留）
             String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
-            // 3. 插入数据
+
+            // 8. 构建用户对象，赋值所有字段（含新增字段）
             User user = new User();
-            user.setUserAccount(userAccount);
+            user.setUserAccount(userAccount); // 手机号作为账号
             user.setUserPassword(encryptPassword);
+            user.setRealName(realName); // 新增：真实姓名
+            user.setIdCard(desensitizeIdCard(idCard)); // 新增：身份证号（脱敏存储）
+            user.setTaxRegion(StringUtils.isBlank(taxRegion) ? "" : taxRegion); // 新增：税务地区（可选）
+            user.setUserRole("user"); // 默认普通用户
+            // 逻辑删除字段默认0（未删除），无需手动赋值
+
+            // 9. 插入数据库
             boolean saveResult = this.save(user);
             if (!saveResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
             }
+
             return user.getId();
         }
+    }
+
+    // ========== 以下是工具方法（校验+脱敏） ==========
+    /**
+     * 校验手机号格式
+     */
+    private boolean isValidPhone(String phone) {
+        if (StringUtils.isBlank(phone)) {
+            return false;
+        }
+        Matcher matcher = PHONE_PATTERN.matcher(phone);
+        return matcher.matches();
+    }
+
+    /**
+     * 校验真实姓名格式
+     */
+    private boolean isValidRealName(String realName) {
+        if (StringUtils.isBlank(realName)) {
+            return false;
+        }
+        Matcher matcher = REAL_NAME_PATTERN.matcher(realName);
+        return matcher.matches();
+    }
+
+    /**
+     * 校验身份证号格式（简单格式校验，毕设足够）
+     */
+    private boolean isValidIdCard(String idCard) {
+        if (StringUtils.isBlank(idCard)) {
+            return false;
+        }
+        Matcher matcher = ID_CARD_PATTERN.matcher(idCard);
+        return matcher.matches();
+    }
+
+    /**
+     * 身份证号脱敏（保留前6后4，中间替换为*）
+     */
+    private String desensitizeIdCard(String idCard) {
+        if (StringUtils.isBlank(idCard) || idCard.length() != 18) {
+            return idCard;
+        }
+        return idCard.substring(0, 6) + "********" + idCard.substring(14);
     }
 
     @Override
@@ -86,7 +165,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
         }
-        if (userAccount.length() < 4) {
+        if (!isValidPhone(userAccount)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号错误");
         }
         if (userPassword.length() < 6) {
@@ -98,6 +177,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
         queryWrapper.eq("userPassword", encryptPassword);
+        // 过滤已逻辑删除的用户
+        queryWrapper.eq("isDelete", 0);
         User user = this.baseMapper.selectOne(queryWrapper);
         // 用户不存在
         if (user == null) {
@@ -251,20 +332,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数为空");
         }
         Long id = userQueryRequest.getId();
-        String unionId = userQueryRequest.getUnionId();
-        String mpOpenId = userQueryRequest.getMpOpenId();
-        String userName = userQueryRequest.getUserName();
-        String userProfile = userQueryRequest.getUserProfile();
+        String userAccount = userQueryRequest.getUserAccount();
+        String realName = userQueryRequest.getRealName();
         String userRole = userQueryRequest.getUserRole();
         String sortField = userQueryRequest.getSortField();
         String sortOrder = userQueryRequest.getSortOrder();
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(id != null, "id", id);
-        queryWrapper.eq(StringUtils.isNotBlank(unionId), "unionId", unionId);
-        queryWrapper.eq(StringUtils.isNotBlank(mpOpenId), "mpOpenId", mpOpenId);
+        queryWrapper.eq(StringUtils.isNotBlank(userAccount), "userAccount", userAccount);
+        queryWrapper.eq(StringUtils.isNotBlank(realName), "realName", realName);
         queryWrapper.eq(StringUtils.isNotBlank(userRole), "userRole", userRole);
-        queryWrapper.like(StringUtils.isNotBlank(userProfile), "userProfile", userProfile);
-        queryWrapper.like(StringUtils.isNotBlank(userName), "userName", userName);
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;

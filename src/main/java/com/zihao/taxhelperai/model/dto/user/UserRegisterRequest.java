@@ -19,4 +19,19 @@ public class UserRegisterRequest implements Serializable {
     private String userPassword;
 
     private String checkPassword;
+
+    /**
+     * 真实姓名
+     */
+    private String realName;
+
+    /**
+     * 身份证号（脱敏）
+     */
+    private String idCard;
+
+    /**
+     * 税务所属地区（如：北京市海淀区）
+     */
+    private String taxRegion;
 }

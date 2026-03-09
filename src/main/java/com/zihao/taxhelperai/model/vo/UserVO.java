@@ -19,29 +19,29 @@ public class UserVO implements Serializable {
     private Long id;
 
     /**
-     * 用户昵称
+     * 账号（手机号）
      */
-    private String userName;
+    private String userAccount;
 
     /**
-     * 用户头像
+     * 真实姓名
      */
-    private String userAvatar;
+    private String realName;
 
     /**
-     * 用户简介
+     * 身份证号（脱敏）
      */
-    private String userProfile;
+    private String idCard;
 
     /**
-     * 用户角色：user/admin/ban
+     * 税务所属地区（如：北京市海淀区）
+     */
+    private String taxRegion;
+
+    /**
+     * 用户角色 user-普通用户 admin-管理员
      */
     private String userRole;
-
-    /**
-     * 创建时间
-     */
-    private Date createTime;
 
     private static final long serialVersionUID = 1L;
 }

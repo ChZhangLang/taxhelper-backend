@@ -8,7 +8,6 @@ import com.zihao.taxhelperai.model.vo.LoginUserVO;
 import com.zihao.taxhelperai.model.vo.UserVO;
 import java.util.List;
 import javax.servlet.http.HttpServletRequest;
-import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 
 /**
  * 用户服务
@@ -24,9 +23,12 @@ public interface UserService extends IService<User> {
      * @param userAccount   用户账户
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
+     * @param realName
+     * @param idCard
+     * @param taxRegion
      * @return 新用户 id
      */
-    long userRegister(String userAccount, String userPassword, String checkPassword);
+    long userRegister(String userAccount, String userPassword, String checkPassword, String realName, String idCard, String taxRegion);
 
     /**
      * 用户登录

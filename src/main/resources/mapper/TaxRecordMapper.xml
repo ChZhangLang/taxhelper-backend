@@ -6,13 +6,13 @@
 
     <resultMap id="BaseResultMap" type="com.zihao.taxhelperai.model.entity.TaxRecord">
             <id property="id" column="id" jdbcType="INTEGER"/>
-            <result property="user_id" column="user_id" jdbcType="INTEGER"/>
+            <result property="userId" column="user_id" jdbcType="INTEGER"/>
             <result property="income" column="income" jdbcType="DECIMAL"/>
             <result property="insurance" column="insurance" jdbcType="DECIMAL"/>
             <result property="deduct" column="deduct" jdbcType="DECIMAL"/>
-            <result property="tax_amount" column="tax_amount" jdbcType="DECIMAL"/>
-            <result property="calc_type" column="calc_type" jdbcType="TINYINT"/>
-            <result property="calc_time" column="calc_time" jdbcType="TIMESTAMP"/>
+            <result property="taxAmount" column="tax_amount" jdbcType="DECIMAL"/>
+            <result property="calcType" column="calc_type" jdbcType="TINYINT"/>
+            <result property="calcTime" column="calc_time" jdbcType="TIMESTAMP"/>
             <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
     </resultMap>
 

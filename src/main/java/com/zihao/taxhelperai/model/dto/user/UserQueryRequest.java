@@ -20,24 +20,14 @@ public class UserQueryRequest extends PageRequest implements Serializable {
     private Long id;
 
     /**
-     * 开放平台id
+     * 账号（手机号）
      */
-    private String unionId;
+    private String userAccount;
 
     /**
-     * 公众号openId
+     * 真实姓名
      */
-    private String mpOpenId;
-
-    /**
-     * 用户昵称
-     */
-    private String userName;
-
-    /**
-     * 简介
-     */
-    private String userProfile;
+    private String realName;
 
     /**
      * 用户角色：user/admin/ban
