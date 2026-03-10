@@ -4,53 +4,22 @@ import com.zihao.taxhelperai.common.PageRequest;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.io.Serializable;
-import java.util.List;
-
 /**
- * 查询计税记录请求
+ * 计税记录分页查询DTO
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author 你的名字
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class TaxRecordQueryRequest extends PageRequest implements Serializable {
+public class TaxRecordQueryRequest extends PageRequest {
 
     /**
-     * id
-     */
-    private Long id;
-
-    /**
-     * id
-     */
-    private Long notId;
-
-    /**
-     * 搜索词
-     */
-    private String searchText;
-
-    /**
-     * 标题
-     */
-    private String title;
-
-    /**
-     * 内容
-     */
-    private String content;
-
-    /**
-     * 标签列表
-     */
-    private List<String> tags;
-
-    /**
-     * 创建用户 id
+     * 用户ID（管理员查询时用）
      */
     private Long userId;
 
-    private static final long serialVersionUID = 1L;
+    /**
+     * 计算类型 1-月薪 2-年度汇算
+     */
+    private Integer calcType;
 }

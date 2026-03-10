@@ -6,6 +6,7 @@ import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
@@ -19,44 +20,44 @@ import java.util.List;
 public class TaxRecordVO implements Serializable {
 
     /**
-     * id
+     * 记录ID
      */
     private Long id;
 
     /**
-     * 标题
+     * 收入金额
      */
-    private String title;
+    private BigDecimal income;
 
     /**
-     * 内容
+     * 五险一金
      */
-    private String content;
+    private BigDecimal insurance;
 
     /**
-     * 创建用户 id
+     * 专项附加扣除
      */
-    private Long userId;
+    private BigDecimal deduct;
 
     /**
-     * 创建时间
+     * 应缴税额
      */
-    private Date createTime;
+    private BigDecimal taxAmount;
 
     /**
-     * 更新时间
+     * 计算类型 1-月薪 2-年度汇算
      */
-    private Date updateTime;
+    private Integer calcType;
 
     /**
-     * 标签列表
+     * 计算类型名称（方便前端展示）
      */
-    private List<String> tagList;
+    private String calcTypeName;
 
     /**
-     * 创建用户信息
+     * 计算时间
      */
-    private UserVO user;
+    private Date calcTime;
 
     /**
      * 封装类转对象
@@ -70,7 +71,7 @@ public class TaxRecordVO implements Serializable {
         }
         TaxRecord taxRecord = new TaxRecord();
         BeanUtils.copyProperties(taxRecordVO, taxRecord);
-        List<String> tagList = taxRecordVO.getTagList();
+//        List<String> tagList = taxRecordVO.getTagList();
         // todo 没有tag
 //        taxRecord.setTags(JSONUtil.toJsonStr(tagList));
         return taxRecord;

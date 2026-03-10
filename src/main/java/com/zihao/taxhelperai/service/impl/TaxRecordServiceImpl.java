@@ -1,227 +1,308 @@
 package com.zihao.taxhelperai.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zihao.taxhelperai.common.ErrorCode;
-import com.zihao.taxhelperai.constant.CommonConstant;
-import com.zihao.taxhelperai.exception.ThrowUtils;
+import com.zihao.taxhelperai.exception.BusinessException;
 import com.zihao.taxhelperai.mapper.TaxRecordMapper;
+import com.zihao.taxhelperai.model.dto.taxRecord.TaxCalculateRequest;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
 import com.zihao.taxhelperai.model.entity.TaxRecord;
-//import com.zihao.taxhelperai.model.entity.TaxRecordFavour;
-//import com.zihao.taxhelperai.model.entity.TaxRecordThumb;
-import com.zihao.taxhelperai.model.entity.User;
+import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
-import com.zihao.taxhelperai.model.vo.UserVO;
 import com.zihao.taxhelperai.service.TaxRecordService;
-import com.zihao.taxhelperai.service.UserService;
-import com.zihao.taxhelperai.utils.SqlUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Date;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 计税记录服务实现
+ * 计税记录服务实现类
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
+ * @author 你的名字
  */
 @Service
-@Slf4j
 public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord> implements TaxRecordService {
 
-    @Resource
-    private UserService userService;
+    // 个税起征点（月薪）
+    private static final BigDecimal MONTHLY_THRESHOLD = new BigDecimal("5000");
+    // 个税起征点（年度）
+    private static final BigDecimal ANNUAL_THRESHOLD = new BigDecimal("60000");
 
-    /**
-     * 校验数据
-     *
-     * @param taxRecord
-     * @param add      对创建的数据进行校验
-     */
     @Override
-    public void validTaxRecord(TaxRecord taxRecord, boolean add) {
-        ThrowUtils.throwIf(taxRecord == null, ErrorCode.PARAMS_ERROR);
-        // todo 不应该检验title
-//        String title = taxRecord.getTitle();
-//        // 创建数据时，参数不能为空
-//        if (add) {
-//            // todo 补充校验规则
-//            ThrowUtils.throwIf(StringUtils.isBlank(title), ErrorCode.PARAMS_ERROR);
-//        }
-//        // 修改数据时，有参数则校验
-//        // todo 补充校验规则
-//        if (StringUtils.isNotBlank(title)) {
-//            ThrowUtils.throwIf(title.length() > 80, ErrorCode.PARAMS_ERROR, "标题过长");
-//        }
+    public TaxCalculateVO calculateAndSaveTax(TaxCalculateRequest taxCalculateRequest, Long userId) {
+        // 1. 参数校验
+        BigDecimal income = taxCalculateRequest.getIncome();
+        BigDecimal insurance = taxCalculateRequest.getInsurance();
+        BigDecimal deduct = taxCalculateRequest.getDeduct();
+        Integer calcType = taxCalculateRequest.getCalcType();
+
+        if (income.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "收入金额必须大于0");
+        }
+        if (insurance.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "五险一金不能为负数");
+        }
+        if (deduct.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "专项附加扣除不能为负数");
+        }
+        if (!calcType.equals(1) && !calcType.equals(2)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "计算类型只能是1（月薪）或2（年度汇算）");
+        }
+
+        // 2. 计算个税
+        BigDecimal taxAmount;
+        BigDecimal taxableIncome; // 应纳税所得额
+        if (calcType.equals(1)) {
+            // 月薪计算
+            taxAmount = calculateMonthlyTax(income, insurance, deduct);
+            // 计算应纳税所得额（展示用）
+            taxableIncome = income.subtract(insurance).subtract(deduct).subtract(MONTHLY_THRESHOLD);
+            if (taxableIncome.compareTo(BigDecimal.ZERO) < 0) {
+                taxableIncome = BigDecimal.ZERO;
+            }
+        } else {
+            // 年度汇算计算
+            taxAmount = calculateAnnualTax(income, insurance, deduct);
+            // 计算应纳税所得额（展示用）
+            taxableIncome = income.subtract(insurance).subtract(deduct).subtract(ANNUAL_THRESHOLD);
+            if (taxableIncome.compareTo(BigDecimal.ZERO) < 0) {
+                taxableIncome = BigDecimal.ZERO;
+            }
+        }
+
+        // 3. 保存计税记录
+        TaxRecord taxRecord = new TaxRecord();
+        taxRecord.setUserId(userId);
+        taxRecord.setIncome(income);
+        taxRecord.setInsurance(insurance);
+        taxRecord.setDeduct(deduct);
+        taxRecord.setTaxAmount(taxAmount);
+        taxRecord.setCalcType(calcType);
+        taxRecord.setCalcTime(new Date());
+        taxRecord.setIsDelete(0);
+        boolean saveResult = this.save(taxRecord);
+        if (!saveResult) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "保存计税记录失败");
+        }
+
+        // 4. 封装返回VO
+        TaxCalculateVO taxCalculateVO = new TaxCalculateVO();
+        BeanUtils.copyProperties(taxCalculateRequest, taxCalculateVO);
+        taxCalculateVO.setTaxableIncome(taxableIncome.setScale(2, RoundingMode.HALF_UP));
+        taxCalculateVO.setTaxAmount(taxAmount.setScale(2, RoundingMode.HALF_UP));
+        taxCalculateVO.setCalcTime(new Date());
+
+        return taxCalculateVO;
+    }
+
+    @Override
+    public Page<TaxRecordVO> listTaxRecordVOByPage(TaxRecordQueryRequest taxRecordQueryRequest) {
+        // 1. 分页参数处理
+        long current = Math.max(taxRecordQueryRequest.getCurrent(), 1);
+        long size = Math.min(taxRecordQueryRequest.getPageSize(), 100);
+        Page<TaxRecord> taxRecordPage = this.page(new Page<>(current, size), getQueryWrapper(taxRecordQueryRequest));
+
+        // 2. 转换为VO分页对象
+        Page<TaxRecordVO> taxRecordVOPage = new Page<>(current, size, taxRecordPage.getTotal());
+        taxRecordVOPage.setRecords(taxRecordPage.getRecords().stream().map(this::convertToTaxRecordVO).collect(Collectors.toList()));
+
+        return taxRecordVOPage;
+    }
+
+    @Override
+    public BigDecimal calculateMonthlyTax(BigDecimal income, BigDecimal insurance, BigDecimal deduct) {
+        // 1. 计算应纳税所得额 = 收入 - 五险一金 - 专项附加扣除 - 5000起征点
+        BigDecimal taxableIncome = income.subtract(insurance).subtract(deduct).subtract(MONTHLY_THRESHOLD);
+        if (taxableIncome.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 2. 月薪个税税率表（超额累进）
+        // 级数 应纳税所得额     税率(%)  速算扣除数
+        // 1    不超过3000元     3       0
+        // 2    超过3000至12000  10      210
+        // 3    超过12000至25000 20      1410
+        // 4    超过25000至35000 25      2660
+        // 5    超过35000至55000 30      4410
+        // 6    超过55000至80000 35      7160
+        // 7    超过80000        45      15160
+        BigDecimal tax = BigDecimal.ZERO;
+        BigDecimal taxable = taxableIncome;
+
+        if (taxable.compareTo(new BigDecimal("80000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("80000")).multiply(new BigDecimal("0.45")));
+            taxable = new BigDecimal("80000");
+        }
+        if (taxable.compareTo(new BigDecimal("55000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("55000")).multiply(new BigDecimal("0.35")));
+            taxable = new BigDecimal("55000");
+        }
+        if (taxable.compareTo(new BigDecimal("35000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("35000")).multiply(new BigDecimal("0.30")));
+            taxable = new BigDecimal("35000");
+        }
+        if (taxable.compareTo(new BigDecimal("25000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("25000")).multiply(new BigDecimal("0.25")));
+            taxable = new BigDecimal("25000");
+        }
+        if (taxable.compareTo(new BigDecimal("12000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("12000")).multiply(new BigDecimal("0.20")));
+            taxable = new BigDecimal("12000");
+        }
+        if (taxable.compareTo(new BigDecimal("3000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("3000")).multiply(new BigDecimal("0.10")));
+            taxable = new BigDecimal("3000");
+        }
+        tax = tax.add(taxable.multiply(new BigDecimal("0.03")));
+
+        // 减去速算扣除数（简化写法，和上面分步计算结果一致）
+        tax = tax.subtract(getMonthlyQuickDeduction(taxableIncome));
+
+        return tax.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    @Override
+    public BigDecimal calculateAnnualTax(BigDecimal income, BigDecimal insurance, BigDecimal deduct) {
+        // 1. 计算年度应纳税所得额 = 年度收入 - 年度五险一金 - 年度专项附加扣除 - 60000起征点
+        BigDecimal taxableIncome = income.subtract(insurance).subtract(deduct).subtract(ANNUAL_THRESHOLD);
+        if (taxableIncome.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 2. 年度个税税率表（超额累进）
+        // 级数 应纳税所得额       税率(%)  速算扣除数
+        // 1    不超过36000元      3       0
+        // 2    超过36000至144000  10      2520
+        // 3    超过144000至300000 20      16920
+        // 4    超过300000至420000 25      31920
+        // 5    超过420000至660000 30      52920
+        // 6    超过660000至960000 35      85920
+        // 7    超过960000         45      181920
+        BigDecimal tax = BigDecimal.ZERO;
+        BigDecimal taxable = taxableIncome;
+
+        if (taxable.compareTo(new BigDecimal("960000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("960000")).multiply(new BigDecimal("0.45")));
+            taxable = new BigDecimal("960000");
+        }
+        if (taxable.compareTo(new BigDecimal("660000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("660000")).multiply(new BigDecimal("0.35")));
+            taxable = new BigDecimal("660000");
+        }
+        if (taxable.compareTo(new BigDecimal("420000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("420000")).multiply(new BigDecimal("0.30")));
+            taxable = new BigDecimal("420000");
+        }
+        if (taxable.compareTo(new BigDecimal("300000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("300000")).multiply(new BigDecimal("0.25")));
+            taxable = new BigDecimal("300000");
+        }
+        if (taxable.compareTo(new BigDecimal("144000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("144000")).multiply(new BigDecimal("0.20")));
+            taxable = new BigDecimal("144000");
+        }
+        if (taxable.compareTo(new BigDecimal("36000")) > 0) {
+            tax = tax.add(taxable.subtract(new BigDecimal("36000")).multiply(new BigDecimal("0.10")));
+            taxable = new BigDecimal("36000");
+        }
+        tax = tax.add(taxable.multiply(new BigDecimal("0.03")));
+
+        // 减去速算扣除数
+        tax = tax.subtract(getAnnualQuickDeduction(taxableIncome));
+
+        return tax.setScale(2, RoundingMode.HALF_UP);
     }
 
     /**
-     * 获取查询条件
-     *
-     * @param taxRecordQueryRequest
-     * @return
+     * 构建查询条件
      */
-    @Override
-    public QueryWrapper<TaxRecord> getQueryWrapper(TaxRecordQueryRequest taxRecordQueryRequest) {
+    private QueryWrapper<TaxRecord> getQueryWrapper(TaxRecordQueryRequest taxRecordQueryRequest) {
         QueryWrapper<TaxRecord> queryWrapper = new QueryWrapper<>();
         if (taxRecordQueryRequest == null) {
             return queryWrapper;
         }
-        // todo 从对象中取值
-        Long id = taxRecordQueryRequest.getId();
-        Long notId = taxRecordQueryRequest.getNotId();
-        String title = taxRecordQueryRequest.getTitle();
-        String content = taxRecordQueryRequest.getContent();
-        String searchText = taxRecordQueryRequest.getSearchText();
-        String sortField = taxRecordQueryRequest.getSortField();
-        String sortOrder = taxRecordQueryRequest.getSortOrder();
-        List<String> tagList = taxRecordQueryRequest.getTags();
+
         Long userId = taxRecordQueryRequest.getUserId();
-        // todo 补充需要的查询条件
-        // 从多字段中搜索
-        if (StringUtils.isNotBlank(searchText)) {
-            // 需要拼接查询条件
-            queryWrapper.and(qw -> qw.like("title", searchText).or().like("content", searchText));
+        Integer calcType = taxRecordQueryRequest.getCalcType();
+
+        // 拼接条件
+        if (userId != null) {
+            queryWrapper.eq("user_id", userId);
         }
-        // 模糊查询
-        queryWrapper.like(StringUtils.isNotBlank(title), "title", title);
-        queryWrapper.like(StringUtils.isNotBlank(content), "content", content);
-        // JSON 数组查询
-        if (CollUtil.isNotEmpty(tagList)) {
-            for (String tag : tagList) {
-                queryWrapper.like("tags", "\"" + tag + "\"");
-            }
+        if (calcType != null) {
+            queryWrapper.eq("calc_type", calcType);
         }
-        // 精确查询
-        queryWrapper.ne(ObjectUtils.isNotEmpty(notId), "id", notId);
-        queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
-        queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
-        // 排序规则
-        queryWrapper.orderBy(SqlUtils.validSortField(sortField),
-                sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
-                sortField);
+
+        // 排除已删除的记录
+        queryWrapper.eq("is_delete", 0);
+        // 按计算时间降序
+        queryWrapper.orderByDesc("calc_time");
+
         return queryWrapper;
     }
 
     /**
-     * 获取计税记录封装
-     *
-     * @param taxRecord
-     * @param request
-     * @return
+     * 转换为TaxRecordVO
      */
-    @Override
-    public TaxRecordVO getTaxRecordVO(TaxRecord taxRecord, HttpServletRequest request) {
-        // 对象转封装类
-        TaxRecordVO taxRecordVO = TaxRecordVO.objToVo(taxRecord);
-
-        // todo 可以根据需要为封装对象补充值，不需要的内容可以删除
-        // region 可选
-        // 1. 关联查询用户信息
-        Long userId = taxRecord.getUserId();
-        User user = null;
-        if (userId != null && userId > 0) {
-            user = userService.getById(userId);
+    private TaxRecordVO convertToTaxRecordVO(TaxRecord taxRecord) {
+        TaxRecordVO taxRecordVO = new TaxRecordVO();
+        BeanUtils.copyProperties(taxRecord, taxRecordVO);
+        // 补充计算类型名称
+        if (Objects.equals(taxRecord.getCalcType(), 1)) {
+            taxRecordVO.setCalcTypeName("月薪");
+        } else if (Objects.equals(taxRecord.getCalcType(), 2)) {
+            taxRecordVO.setCalcTypeName("年度汇算");
+        } else {
+            taxRecordVO.setCalcTypeName("未知");
         }
-        UserVO userVO = userService.getUserVO(user);
-        taxRecordVO.setUser(userVO);
-        // 2. 已登录，获取用户点赞、收藏状态
-        long taxRecordId = taxRecord.getId();
-        User loginUser = userService.getLoginUserPermitNull(request);
-        // todo 不应该获取点赞
-//        if (loginUser != null) {
-//            // 获取点赞
-//            QueryWrapper<TaxRecordThumb> taxRecordThumbQueryWrapper = new QueryWrapper<>();
-//            taxRecordThumbQueryWrapper.in("taxRecordId", taxRecordId);
-//            taxRecordThumbQueryWrapper.eq("userId", loginUser.getId());
-//            TaxRecordThumb taxRecordThumb = taxRecordThumbMapper.selectOne(taxRecordThumbQueryWrapper);
-//            taxRecordVO.setHasThumb(taxRecordThumb != null);
-//            // 获取收藏
-//            QueryWrapper<TaxRecordFavour> taxRecordFavourQueryWrapper = new QueryWrapper<>();
-//            taxRecordFavourQueryWrapper.in("taxRecordId", taxRecordId);
-//            taxRecordFavourQueryWrapper.eq("userId", loginUser.getId());
-//            TaxRecordFavour taxRecordFavour = taxRecordFavourMapper.selectOne(taxRecordFavourQueryWrapper);
-//            taxRecordVO.setHasFavour(taxRecordFavour != null);
-//        }
-        // endregion
-
         return taxRecordVO;
     }
 
     /**
-     * 分页获取计税记录封装
-     *
-     * @param taxRecordPage
-     * @param request
-     * @return
+     * 获取月薪个税速算扣除数
      */
-    @Override
-    public Page<TaxRecordVO> getTaxRecordVOPage(Page<TaxRecord> taxRecordPage, HttpServletRequest request) {
-        List<TaxRecord> taxRecordList = taxRecordPage.getRecords();
-        Page<TaxRecordVO> taxRecordVOPage = new Page<>(taxRecordPage.getCurrent(), taxRecordPage.getSize(), taxRecordPage.getTotal());
-        if (CollUtil.isEmpty(taxRecordList)) {
-            return taxRecordVOPage;
+    private BigDecimal getMonthlyQuickDeduction(BigDecimal taxableIncome) {
+        if (taxableIncome.compareTo(new BigDecimal("3000")) <= 0) {
+            return BigDecimal.ZERO;
+        } else if (taxableIncome.compareTo(new BigDecimal("12000")) <= 0) {
+            return new BigDecimal("210");
+        } else if (taxableIncome.compareTo(new BigDecimal("25000")) <= 0) {
+            return new BigDecimal("1410");
+        } else if (taxableIncome.compareTo(new BigDecimal("35000")) <= 0) {
+            return new BigDecimal("2660");
+        } else if (taxableIncome.compareTo(new BigDecimal("55000")) <= 0) {
+            return new BigDecimal("4410");
+        } else if (taxableIncome.compareTo(new BigDecimal("80000")) <= 0) {
+            return new BigDecimal("7160");
+        } else {
+            return new BigDecimal("15160");
         }
-        // 对象列表 => 封装对象列表
-        List<TaxRecordVO> taxRecordVOList = taxRecordList.stream().map(taxRecord -> {
-            return TaxRecordVO.objToVo(taxRecord);
-        }).collect(Collectors.toList());
-
-        // todo 可以根据需要为封装对象补充值，不需要的内容可以删除
-        // region 可选
-        // 1. 关联查询用户信息
-        Set<Long> userIdSet = taxRecordList.stream().map(TaxRecord::getUserId).collect(Collectors.toSet());
-        Map<Long, List<User>> userIdUserListMap = userService.listByIds(userIdSet).stream()
-                .collect(Collectors.groupingBy(User::getId));
-        // 2. 已登录，获取用户点赞、收藏状态
-        Map<Long, Boolean> taxRecordIdHasThumbMap = new HashMap<>();
-        Map<Long, Boolean> taxRecordIdHasFavourMap = new HashMap<>();
-        User loginUser = userService.getLoginUserPermitNull(request);
-        // todo 不应该获取点赞
-//        if (loginUser != null) {
-//            Set<Long> taxRecordIdSet = taxRecordList.stream().map(TaxRecord::getId).collect(Collectors.toSet());
-//            loginUser = userService.getLoginUser(request);
-//            // 获取点赞
-//            QueryWrapper<TaxRecordThumb> taxRecordThumbQueryWrapper = new QueryWrapper<>();
-//            taxRecordThumbQueryWrapper.in("taxRecordId", taxRecordIdSet);
-//            taxRecordThumbQueryWrapper.eq("userId", loginUser.getId());
-//            List<TaxRecordThumb> taxRecordTaxRecordThumbList = taxRecordThumbMapper.selectList(taxRecordThumbQueryWrapper);
-//            taxRecordTaxRecordThumbList.forEach(taxRecordTaxRecordThumb -> taxRecordIdHasThumbMap.put(taxRecordTaxRecordThumb.getTaxRecordId(), true));
-//            // 获取收藏
-//            QueryWrapper<TaxRecordFavour> taxRecordFavourQueryWrapper = new QueryWrapper<>();
-//            taxRecordFavourQueryWrapper.in("taxRecordId", taxRecordIdSet);
-//            taxRecordFavourQueryWrapper.eq("userId", loginUser.getId());
-//            List<TaxRecordFavour> taxRecordFavourList = taxRecordFavourMapper.selectList(taxRecordFavourQueryWrapper);
-//            taxRecordFavourList.forEach(taxRecordFavour -> taxRecordIdHasFavourMap.put(taxRecordFavour.getTaxRecordId(), true));
-//        }
-        // 填充信息
-        taxRecordVOList.forEach(taxRecordVO -> {
-            Long userId = taxRecordVO.getUserId();
-            User user = null;
-            if (userIdUserListMap.containsKey(userId)) {
-                user = userIdUserListMap.get(userId).get(0);
-            }
-            taxRecordVO.setUser(userService.getUserVO(user));
-            // todo 不应该获取点赞
-//            taxRecordVO.setHasThumb(taxRecordIdHasThumbMap.getOrDefault(taxRecordVO.getId(), false));
-//            taxRecordVO.setHasFavour(taxRecordIdHasFavourMap.getOrDefault(taxRecordVO.getId(), false));
-        });
-        // endregion
-
-        taxRecordVOPage.setRecords(taxRecordVOList);
-        return taxRecordVOPage;
     }
 
+    /**
+     * 获取年度个税速算扣除数
+     */
+    private BigDecimal getAnnualQuickDeduction(BigDecimal taxableIncome) {
+        if (taxableIncome.compareTo(new BigDecimal("36000")) <= 0) {
+            return BigDecimal.ZERO;
+        } else if (taxableIncome.compareTo(new BigDecimal("144000")) <= 0) {
+            return new BigDecimal("2520");
+        } else if (taxableIncome.compareTo(new BigDecimal("300000")) <= 0) {
+            return new BigDecimal("16920");
+        } else if (taxableIncome.compareTo(new BigDecimal("420000")) <= 0) {
+            return new BigDecimal("31920");
+        } else if (taxableIncome.compareTo(new BigDecimal("660000")) <= 0) {
+            return new BigDecimal("52920");
+        } else if (taxableIncome.compareTo(new BigDecimal("960000")) <= 0) {
+            return new BigDecimal("85920");
+        } else {
+            return new BigDecimal("181920");
+        }
+    }
 }
