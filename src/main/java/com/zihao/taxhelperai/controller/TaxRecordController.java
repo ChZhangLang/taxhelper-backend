@@ -6,6 +6,7 @@ import com.zihao.taxhelperai.common.ErrorCode;
 import com.zihao.taxhelperai.common.ResultUtils;
 import com.zihao.taxhelperai.constant.UserConstant;
 import com.zihao.taxhelperai.exception.BusinessException;
+import com.zihao.taxhelperai.exception.ThrowUtils;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxCalculateRequest;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
 import com.zihao.taxhelperai.model.entity.User;
@@ -67,9 +68,8 @@ public class TaxRecordController {
             HttpServletRequest request) {
         // 1. 获取登录用户
         User loginUser = userService.getLoginUser(request);
-        if (loginUser == null) {
-            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR, "未登录");
-        }
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR, "未登录");
+
         // 2. 只查自己的记录
         taxRecordQueryRequest.setUserId(loginUser.getId());
         Page<TaxRecordVO> taxRecordVOPage = taxRecordService.listTaxRecordVOByPage(taxRecordQueryRequest);

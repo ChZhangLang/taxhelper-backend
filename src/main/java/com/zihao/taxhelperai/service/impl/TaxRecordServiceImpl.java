@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zihao.taxhelperai.common.ErrorCode;
 import com.zihao.taxhelperai.exception.BusinessException;
+import com.zihao.taxhelperai.exception.ThrowUtils;
 import com.zihao.taxhelperai.mapper.TaxRecordMapper;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxCalculateRequest;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
@@ -42,18 +43,14 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         BigDecimal deduct = taxCalculateRequest.getDeduct();
         Integer calcType = taxCalculateRequest.getCalcType();
 
-        if (income.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "收入金额必须大于0");
-        }
-        if (insurance.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "五险一金不能为负数");
-        }
-        if (deduct.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "专项附加扣除不能为负数");
-        }
-        if (!calcType.equals(1) && !calcType.equals(2)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "计算类型只能是1（月薪）或2（年度汇算）");
-        }
+        ThrowUtils.throwIf(income.compareTo(BigDecimal.ZERO) <= 0,
+                            ErrorCode.PARAMS_ERROR, "收入金额必须大于0");
+        ThrowUtils.throwIf(insurance.compareTo(BigDecimal.ZERO) < 0,
+                            ErrorCode.PARAMS_ERROR, "五险一金不能为负数");
+        ThrowUtils.throwIf(deduct.compareTo(BigDecimal.ZERO) < 0,
+                            ErrorCode.PARAMS_ERROR, "专项附加扣除不能为负数");
+        ThrowUtils.throwIf(!calcType.equals(1) && !calcType.equals(2),
+                            ErrorCode.PARAMS_ERROR, "计算类型只能是1（月薪）或2（年度汇算）");
 
         // 2. 计算个税
         BigDecimal taxAmount;
@@ -87,9 +84,7 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         taxRecord.setCalcTime(new Date());
         taxRecord.setIsDelete(0);
         boolean saveResult = this.save(taxRecord);
-        if (!saveResult) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "保存计税记录失败");
-        }
+        ThrowUtils.throwIf(!saveResult, ErrorCode.OPERATION_ERROR, "保存计税记录失败");
 
         // 4. 封装返回VO
         TaxCalculateVO taxCalculateVO = new TaxCalculateVO();
@@ -101,16 +96,33 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         return taxCalculateVO;
     }
 
+//    @Override
+//    public Page<TaxRecordVO> listTaxRecordVOByPage(TaxRecordQueryRequest taxRecordQueryRequest) {
+//        // 1. 分页参数处理
+//        long current = Math.max(taxRecordQueryRequest.getCurrent(), 1);
+//        long size = Math.min(taxRecordQueryRequest.getPageSize(), 100);
+//        Page<TaxRecord> taxRecordPage = this.page(new Page<>(current, size), getQueryWrapper(taxRecordQueryRequest));
+//
+//        // 2. 转换为VO分页对象
+//        Page<TaxRecordVO> taxRecordVOPage = new Page<>(current, size, taxRecordPage.getTotal());
+//        taxRecordVOPage.setRecords(taxRecordPage.getRecords().stream().
+//                                    map(this::convertToTaxRecordVO).collect(Collectors.toList()));
+//
+//        return taxRecordVOPage;
+//    }
+
     @Override
     public Page<TaxRecordVO> listTaxRecordVOByPage(TaxRecordQueryRequest taxRecordQueryRequest) {
-        // 1. 分页参数处理
+        // 1. 分页参数处理（保留原有正确逻辑）
         long current = Math.max(taxRecordQueryRequest.getCurrent(), 1);
         long size = Math.min(taxRecordQueryRequest.getPageSize(), 100);
+//        long size = Math.max(Math.min(taxRecordQueryRequest.getPageSize(), 100), 1);
+
+        // 2. 执行分页查询（MyBatis-Plus 自动封装 total + records）
         Page<TaxRecord> taxRecordPage = this.page(new Page<>(current, size), getQueryWrapper(taxRecordQueryRequest));
 
-        // 2. 转换为VO分页对象
-        Page<TaxRecordVO> taxRecordVOPage = new Page<>(current, size, taxRecordPage.getTotal());
-        taxRecordVOPage.setRecords(taxRecordPage.getRecords().stream().map(this::convertToTaxRecordVO).collect(Collectors.toList()));
+        // 3. 核心修复：调用 VO 类的静态转换方法，完成批量转换
+        Page<TaxRecordVO> taxRecordVOPage = (Page<TaxRecordVO>) taxRecordPage.convert(TaxRecordVO::objToVo);
 
         return taxRecordVOPage;
     }
@@ -132,38 +144,37 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         // 5    超过35000至55000 30      4410
         // 6    超过55000至80000 35      7160
         // 7    超过80000        45      15160
-        BigDecimal tax = BigDecimal.ZERO;
-        BigDecimal taxable = taxableIncome;
+        BigDecimal tax = taxableIncome.multiply(getMonthlyTaxRate(taxableIncome))
+                .subtract(getMonthlyQuickDeduction(taxableIncome));
 
-        if (taxable.compareTo(new BigDecimal("80000")) > 0) {
-            tax = tax.add(taxable.subtract(new BigDecimal("80000")).multiply(new BigDecimal("0.45")));
-            taxable = new BigDecimal("80000");
-        }
-        if (taxable.compareTo(new BigDecimal("55000")) > 0) {
-            tax = tax.add(taxable.subtract(new BigDecimal("55000")).multiply(new BigDecimal("0.35")));
-            taxable = new BigDecimal("55000");
-        }
-        if (taxable.compareTo(new BigDecimal("35000")) > 0) {
-            tax = tax.add(taxable.subtract(new BigDecimal("35000")).multiply(new BigDecimal("0.30")));
-            taxable = new BigDecimal("35000");
-        }
-        if (taxable.compareTo(new BigDecimal("25000")) > 0) {
-            tax = tax.add(taxable.subtract(new BigDecimal("25000")).multiply(new BigDecimal("0.25")));
-            taxable = new BigDecimal("25000");
-        }
-        if (taxable.compareTo(new BigDecimal("12000")) > 0) {
-            tax = tax.add(taxable.subtract(new BigDecimal("12000")).multiply(new BigDecimal("0.20")));
-            taxable = new BigDecimal("12000");
-        }
-        if (taxable.compareTo(new BigDecimal("3000")) > 0) {
-            tax = tax.add(taxable.subtract(new BigDecimal("3000")).multiply(new BigDecimal("0.10")));
-            taxable = new BigDecimal("3000");
-        }
-        tax = tax.add(taxable.multiply(new BigDecimal("0.03")));
+        // 分布超额计算
+//        if (taxable.compareTo(new BigDecimal("80000")) > 0) {
+//            tax = tax.add(taxable.subtract(new BigDecimal("80000")).multiply(new BigDecimal("0.45")));
+//            taxable = new BigDecimal("80000");
+//        }
+//        if (taxable.compareTo(new BigDecimal("55000")) > 0) {
+//            tax = tax.add(taxable.subtract(new BigDecimal("55000")).multiply(new BigDecimal("0.35")));
+//            taxable = new BigDecimal("55000");
+//        }
+//        if (taxable.compareTo(new BigDecimal("35000")) > 0) {
+//            tax = tax.add(taxable.subtract(new BigDecimal("35000")).multiply(new BigDecimal("0.30")));
+//            taxable = new BigDecimal("35000");
+//        }
+//        if (taxable.compareTo(new BigDecimal("25000")) > 0) {
+//            tax = tax.add(taxable.subtract(new BigDecimal("25000")).multiply(new BigDecimal("0.25")));
+//            taxable = new BigDecimal("25000");
+//        }
+//        if (taxable.compareTo(new BigDecimal("12000")) > 0) {
+//            tax = tax.add(taxable.subtract(new BigDecimal("12000")).multiply(new BigDecimal("0.20")));
+//            taxable = new BigDecimal("12000");
+//        }
+//        if (taxable.compareTo(new BigDecimal("3000")) > 0) {
+//            tax = tax.add(taxable.subtract(new BigDecimal("3000")).multiply(new BigDecimal("0.10")));
+//            taxable = new BigDecimal("3000");
+//        }
+//        tax = tax.add(taxable.multiply(new BigDecimal("0.03")));
 
         // 减去速算扣除数（简化写法，和上面分步计算结果一致）
-        tax = tax.subtract(getMonthlyQuickDeduction(taxableIncome));
-
         return tax.setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -233,35 +244,52 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
 
         // 拼接条件
         if (userId != null) {
-            queryWrapper.eq("user_id", userId);
+            queryWrapper.eq("userId", userId);
         }
         if (calcType != null) {
-            queryWrapper.eq("calc_type", calcType);
+            queryWrapper.eq("calcType", calcType);
         }
 
-        // 排除已删除的记录
-        queryWrapper.eq("is_delete", 0);
         // 按计算时间降序
-        queryWrapper.orderByDesc("calc_time");
+        queryWrapper.orderByDesc("calcTime");
 
         return queryWrapper;
     }
 
-    /**
-     * 转换为TaxRecordVO
-     */
-    private TaxRecordVO convertToTaxRecordVO(TaxRecord taxRecord) {
-        TaxRecordVO taxRecordVO = new TaxRecordVO();
-        BeanUtils.copyProperties(taxRecord, taxRecordVO);
-        // 补充计算类型名称
-        if (Objects.equals(taxRecord.getCalcType(), 1)) {
-            taxRecordVO.setCalcTypeName("月薪");
-        } else if (Objects.equals(taxRecord.getCalcType(), 2)) {
-            taxRecordVO.setCalcTypeName("年度汇算");
+//    /**
+//     * 转换为TaxRecordVO
+//     */
+//    private TaxRecordVO convertToTaxRecordVO(TaxRecord taxRecord) {
+//        TaxRecordVO taxRecordVO = new TaxRecordVO();
+//        BeanUtils.copyProperties(taxRecord, taxRecordVO);
+//        // 补充计算类型名称
+//        if (Objects.equals(taxRecord.getCalcType(), 1)) {
+//            taxRecordVO.setCalcTypeName("月薪");
+//        } else if (Objects.equals(taxRecord.getCalcType(), 2)) {
+//            taxRecordVO.setCalcTypeName("年度汇算");
+//        } else {
+//            taxRecordVO.setCalcTypeName("未知");
+//        }
+//        return taxRecordVO;
+//    }
+
+    // 根据应纳税所得额获取对应税率
+    private BigDecimal getMonthlyTaxRate(BigDecimal taxableIncome) {
+        if (taxableIncome.compareTo(new BigDecimal("3000")) <= 0) {
+            return new BigDecimal("0.03");
+        } else if (taxableIncome.compareTo(new BigDecimal("12000")) <= 0) {
+            return new BigDecimal("0.10");
+        } else if (taxableIncome.compareTo(new BigDecimal("25000")) <= 0) {
+            return new BigDecimal("0.20");
+        } else if (taxableIncome.compareTo(new BigDecimal("35000")) <= 0) {
+            return new BigDecimal("0.25");
+        } else if (taxableIncome.compareTo(new BigDecimal("55000")) <= 0) {
+            return new BigDecimal("0.30");
+        } else if (taxableIncome.compareTo(new BigDecimal("80000")) <= 0) {
+            return new BigDecimal("0.35");
         } else {
-            taxRecordVO.setCalcTypeName("未知");
+            return new BigDecimal("0.45");
         }
-        return taxRecordVO;
     }
 
     /**

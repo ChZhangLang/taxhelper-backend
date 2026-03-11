@@ -1,34 +1,23 @@
 package com.zihao.taxhelperai.common;
 
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
 import com.zihao.taxhelperai.constant.CommonConstant;
 import lombok.Data;
 
-/**
- * 分页请求
- *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
- */
 @Data
+@ApiModel(description = "分页请求")
 public class PageRequest {
 
-    /**
-     * 当前页号
-     */
+    @ApiModelProperty(value = "当前页号，默认 1", example = "1")
     private int current = 1;
 
-    /**
-     * 页面大小
-     */
+    @ApiModelProperty(value = "页面大小，默认 10", example = "10")
     private int pageSize = 10;
 
-    /**
-     * 排序字段
-     */
+    @ApiModelProperty(value = "排序字段")
     private String sortField;
 
-    /**
-     * 排序顺序（默认升序）
-     */
+    @ApiModelProperty(value = "排序顺序（默认升序）", example = "asc")
     private String sortOrder = CommonConstant.SORT_ORDER_ASC;
 }

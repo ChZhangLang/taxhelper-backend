@@ -89,8 +89,20 @@ public class TaxRecordVO implements Serializable {
         }
         TaxRecordVO taxRecordVO = new TaxRecordVO();
         BeanUtils.copyProperties(taxRecord, taxRecordVO);
-        // todo 没有tag
-//        taxRecordVO.setTagList(JSONUtil.toList(taxRecord.getTags(), String.class));
+        // 自动赋值计算类型名称
+        if (taxRecord.getCalcType() != null) {
+            switch (taxRecord.getCalcType()) {
+                case 1:
+                    taxRecordVO.setCalcTypeName("月薪计税");
+                    break;
+                case 2:
+                    taxRecordVO.setCalcTypeName("年度汇算");
+                    break;
+                default:
+                    taxRecordVO.setCalcTypeName("未知类型");
+                    break;
+            }
+        }
         return taxRecordVO;
     }
 }

@@ -17,8 +17,8 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,user_id,income,
-        insurance,deduct,tax_amount,
-        calc_type,calc_time,isDelete
+        id,userId,income,
+        insurance,deduct,taxAmount,
+        calcType,calcTime,isDelete
     </sql>
 </mapper>
