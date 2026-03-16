@@ -100,7 +100,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             user.setUserAccount(userAccount); // 手机号作为账号
             user.setUserPassword(encryptPassword);
             user.setRealName(realName); // 新增：真实姓名
-            user.setIdCard(desensitizeIdCard(idCard)); // 新增：身份证号（脱敏存储）
+            user.setIdCard(encryptIdCard(idCard)); // 新增：身份证号（加密存储）
             user.setTaxRegion(StringUtils.isBlank(taxRegion) ? "" : taxRegion); // 新增：税务地区（可选）
             user.setUserRole("user"); // 默认普通用户
             // 逻辑删除字段默认0（未删除），无需手动赋值
@@ -150,9 +150,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 身份证号脱敏（保留前6后4，中间替换为*）
+     * 身份证号加密存储（使用MD5加密）
      */
-    private String desensitizeIdCard(String idCard) {
+    private String encryptIdCard(String idCard) {
+        if (StringUtils.isBlank(idCard)) {
+            return idCard;
+        }
+        return DigestUtils.md5DigestAsHex((SALT + idCard).getBytes());
+    }
+
+    /**
+     * 身份证号验证（用于登录时验证）
+     */
+    private boolean verifyIdCard(String inputIdCard, String encryptedIdCard) {
+        if (StringUtils.isBlank(inputIdCard) || StringUtils.isBlank(encryptedIdCard)) {
+            return false;
+        }
+        String encryptedInput = encryptIdCard(inputIdCard);
+        return encryptedInput.equals(encryptedIdCard);
+    }
+
+    /**
+     * 身份证号脱敏显示（用于前端展示）
+     */
+    private String desensitizeIdCardForDisplay(String idCard) {
         if (StringUtils.isBlank(idCard) || idCard.length() != 18) {
             return idCard;
         }
@@ -315,6 +336,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         UserVO userVO = new UserVO();
         BeanUtils.copyProperties(user, userVO);
+        // 不返回加密的身份证号，设置为空或固定脱敏格式
+        userVO.setIdCard("**************");
         return userVO;
     }
 

@@ -12,9 +12,11 @@ import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
 import com.zihao.taxhelperai.model.entity.TaxRecord;
 import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
+import com.zihao.taxhelperai.service.SpecialDeductionService;
 import com.zihao.taxhelperai.service.TaxRecordService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -35,24 +37,30 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
     // 个税起征点（年度）
     private static final BigDecimal ANNUAL_THRESHOLD = new BigDecimal("60000");
 
+    @Autowired
+    private SpecialDeductionService specialDeductionService;
+
     @Override
     public TaxCalculateVO calculateAndSaveTax(TaxCalculateRequest taxCalculateRequest, Long userId) {
         // 1. 参数校验
         BigDecimal income = taxCalculateRequest.getIncome();
         BigDecimal insurance = taxCalculateRequest.getInsurance();
-        BigDecimal deduct = taxCalculateRequest.getDeduct();
         Integer calcType = taxCalculateRequest.getCalcType();
 
         ThrowUtils.throwIf(income.compareTo(BigDecimal.ZERO) <= 0,
                             ErrorCode.PARAMS_ERROR, "收入金额必须大于0");
         ThrowUtils.throwIf(insurance.compareTo(BigDecimal.ZERO) < 0,
                             ErrorCode.PARAMS_ERROR, "五险一金不能为负数");
-        ThrowUtils.throwIf(deduct.compareTo(BigDecimal.ZERO) < 0,
-                            ErrorCode.PARAMS_ERROR, "专项附加扣除不能为负数");
         ThrowUtils.throwIf(!calcType.equals(1) && !calcType.equals(2),
                             ErrorCode.PARAMS_ERROR, "计算类型只能是1（月薪）或2（年度汇算）");
 
-        // 2. 计算个税
+        // 2. 从专项附加扣除模块获取用户的扣除总额
+        BigDecimal deduct = specialDeductionService.getCurrentDeductionAmount(userId);
+        if (deduct == null) {
+            deduct = BigDecimal.ZERO;
+        }
+
+        // 3. 计算个税
         BigDecimal taxAmount;
         BigDecimal taxableIncome; // 应纳税所得额
         if (calcType.equals(1)) {
@@ -73,7 +81,7 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
             }
         }
 
-        // 3. 保存计税记录
+        // 4. 保存计税记录
         TaxRecord taxRecord = new TaxRecord();
         taxRecord.setUserId(userId);
         taxRecord.setIncome(income);
@@ -86,9 +94,12 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         boolean saveResult = this.save(taxRecord);
         ThrowUtils.throwIf(!saveResult, ErrorCode.OPERATION_ERROR, "保存计税记录失败");
 
-        // 4. 封装返回VO
+        // 5. 封装返回VO
         TaxCalculateVO taxCalculateVO = new TaxCalculateVO();
-        BeanUtils.copyProperties(taxCalculateRequest, taxCalculateVO);
+        taxCalculateVO.setIncome(income);
+        taxCalculateVO.setInsurance(insurance);
+        taxCalculateVO.setDeduct(deduct);
+        taxCalculateVO.setCalcType(calcType);
         taxCalculateVO.setTaxableIncome(taxableIncome.setScale(2, RoundingMode.HALF_UP));
         taxCalculateVO.setTaxAmount(taxAmount.setScale(2, RoundingMode.HALF_UP));
         taxCalculateVO.setCalcTime(new Date());
