@@ -15,6 +15,11 @@ public class SpecialDeductionVO {
     private Long id;
 
     /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
      * 扣除类型：1-子女教育 2-继续教育 3-大病医疗 4-住房贷款 5-住房租金 6-赡养老人
      */
     private Integer deductionType;
@@ -68,14 +73,24 @@ public class SpecialDeductionVO {
         }
         SpecialDeductionVO vo = new SpecialDeductionVO();
         try {
-            // 使用反射复制属性
+            // 使用反射复制属性，只复制VO中存在的字段
             java.lang.reflect.Field[] fields = obj.getClass().getDeclaredFields();
             for (java.lang.reflect.Field field : fields) {
                 field.setAccessible(true);
-                Object value = field.get(obj);
-                java.lang.reflect.Field voField = vo.getClass().getDeclaredField(field.getName());
-                voField.setAccessible(true);
-                voField.set(vo, value);
+                // 跳过静态字段和serialVersionUID
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) || "serialVersionUID".equals(field.getName())) {
+                    continue;
+                }
+                try {
+                    // 检查VO中是否存在该字段
+                    java.lang.reflect.Field voField = vo.getClass().getDeclaredField(field.getName());
+                    voField.setAccessible(true);
+                    Object value = field.get(obj);
+                    voField.set(vo, value);
+                } catch (NoSuchFieldException e) {
+                    // VO中不存在该字段，跳过
+                    continue;
+                }
             }
             // 设置类型名称
             if (vo.getDeductionType() != null) {

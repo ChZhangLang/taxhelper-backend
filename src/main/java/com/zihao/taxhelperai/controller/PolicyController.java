@@ -10,6 +10,7 @@ import com.zihao.taxhelperai.common.ResultUtils;
 import com.zihao.taxhelperai.model.dto.guide.GuideAddDTO;
 import com.zihao.taxhelperai.model.dto.policy.PolicyAddDTO;
 import com.zihao.taxhelperai.model.dto.policy.PolicyQueryDTO;
+import com.zihao.taxhelperai.model.vo.PolicySyncVO;
 import com.zihao.taxhelperai.model.vo.PolicyVO;
 import com.zihao.taxhelperai.service.PolicyService;
 import org.springframework.validation.annotation.Validated;
@@ -81,5 +82,14 @@ public class PolicyController {
         } else {
             return ResultUtils.error(500, "删除政策失败");
         }
+    }
+
+    /**
+     * 手动同步政策（假爬虫）
+     */
+    @PostMapping("/sync")
+    public BaseResponse<PolicySyncVO> syncPolicy() {
+        PolicySyncVO result = policyService.syncPolicy();
+        return ResultUtils.success(result);
     }
 }

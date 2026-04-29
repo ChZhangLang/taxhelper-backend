@@ -6,7 +6,7 @@
 
     <resultMap id="BaseResultMap" type="com.zihao.taxhelperai.model.entity.Guide">
             <id property="id" column="id" jdbcType="INTEGER"/>
-            <result property="policyId" column="policy_id" jdbcType="INTEGER"/>
+            <result property="policyId" column="policyId" jdbcType="INTEGER"/>
             <result property="steps" column="steps" jdbcType="VARCHAR"/>
             <result property="tips" column="tips" jdbcType="VARCHAR"/>
             <result property="materials" column="materials" jdbcType="VARCHAR"/>
@@ -14,7 +14,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,policy_id,steps,
+        id,policyId,steps,
         tips,materials,isDelete
     </sql>
 </mapper>

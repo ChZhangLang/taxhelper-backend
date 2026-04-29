@@ -14,6 +14,7 @@ import com.zihao.taxhelperai.model.dto.guide.GuideAddDTO;
 import com.zihao.taxhelperai.model.dto.policy.PolicyAddDTO;
 import com.zihao.taxhelperai.model.dto.policy.PolicyQueryDTO;
 import com.zihao.taxhelperai.model.entity.Policy;
+import com.zihao.taxhelperai.model.vo.PolicySyncVO;
 import com.zihao.taxhelperai.model.vo.PolicyVO;
 
 public interface PolicyService extends IService<Policy> {
@@ -41,4 +42,9 @@ public interface PolicyService extends IService<Policy> {
      * 逻辑删除政策（级联删除指引）
      */
     boolean deletePolicy(Integer policyId);
+
+    /**
+     * 手动同步政策（假爬虫）
+     */
+    PolicySyncVO syncPolicy();
 }
