@@ -40,6 +40,16 @@ public class Policy implements Serializable {
     private Integer createUser;
 
     /**
+     * AI政策解读
+     */
+    private String aiSummary;
+
+    /**
+     * AI提取的计税规则JSON
+     */
+    private String aiRules;
+
+    /**
      * 创建时间
      */
     private Date createTime;

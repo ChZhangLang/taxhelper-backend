@@ -8,6 +8,10 @@ import com.zihao.taxhelperai.mapper.PolicyMapper;
 import com.zihao.taxhelperai.model.dto.guide.GuideAddDTO;
 import com.zihao.taxhelperai.model.dto.policy.PolicyAddDTO;
 import com.zihao.taxhelperai.model.dto.policy.PolicyQueryDTO;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.zihao.taxhelperai.ai.AiService;
 import com.zihao.taxhelperai.model.entity.Guide;
 import com.zihao.taxhelperai.model.entity.Policy;
 import com.zihao.taxhelperai.model.vo.GuideVO;
@@ -32,6 +36,9 @@ public class PolicyServiceImpl extends ServiceImpl<PolicyMapper, Policy> impleme
 
     @Resource
     private GuideMapper guideMapper;
+
+    @Resource
+    private AiService aiService;
 
     /**
      * 分页查询政策（支持类型/关键词筛选）
@@ -107,6 +114,8 @@ public class PolicyServiceImpl extends ServiceImpl<PolicyMapper, Policy> impleme
     public boolean addPolicy(PolicyAddDTO addDTO) {
         Policy policy = new Policy();
         BeanUtils.copyProperties(addDTO, policy);
+        // 调用AI解析政策
+        fillAiInfo(policy);
         // MyBatis-Plus自动填充创建/更新时间（需配置元对象处理器）
         return save(policy);
     }
@@ -167,6 +176,8 @@ public class PolicyServiceImpl extends ServiceImpl<PolicyMapper, Policy> impleme
 
         int insertCount = 0;
         for (Policy policy : newPolicies) {
+            // 调用AI解析政策
+            fillAiInfo(policy);
             if (save(policy)) {
                 insertCount++;
             }
@@ -237,5 +248,67 @@ public class PolicyServiceImpl extends ServiceImpl<PolicyMapper, Policy> impleme
         policy.setContent(content);
         policy.setCreateUser(1);
         return policy;
+    }
+
+    /**
+     * 调用AI填充政策解读和计税规则
+     */
+    private void fillAiInfo(Policy policy) {
+        try {
+            String prompt = buildPrompt(policy.getContent());
+            String result = aiService.call(prompt);
+            // 统一清洗脏字符，保障JSON可解析
+            result = clean(result);
+            JSONObject json = JSON.parseObject(result);
+            // 赋值入库
+            policy.setAiSummary(json.getString("summary"));
+            policy.setAiRules(json.getJSONArray("rules").toJSONString());
+        } catch (Exception e) {
+            // 异常兜底，避免页面报错、系统崩溃
+            policy.setAiSummary("暂无AI解读");
+            policy.setAiRules("[]");
+        }
+    }
+
+    /**
+     * 构建AI提示词
+     */
+    private String buildPrompt(String content) {
+        return "你是专业个人所得税税务专家助手，严格遵守所有硬性格式约束，仅处理个税计税相关内容。\n" +
+               "请根据提供的税务政策原文，固定完成两项任务，全程只返回纯净合法JSON，禁止任何多余文字、解释、备注、换行说明、Markdown、代码块、特殊符号。\n" +
+               "任务1：提取个人所得税计算可用规则\n" +
+               "- 仅保留可直接用于金额计算的有效内容：免征额、专项附加扣除、定额扣除、扣除标准、固定比例等\n" +
+               "- 严格使用固定字段，不新增、不删减、不修改字段名：\n" +
+               "  name：扣除/政策项目完整名称（中文）\n" +
+               "  amount：纯数字数值，仅保留数字，禁止汉字、单位、符号、元/月等后缀\n" +
+               "  unit：仅允许固定枚举值：per_month/per_year\n" +
+               "- 无任何个税计税相关内容时，rules必须为空数组：[]\n" +
+               "任务2：生成政策通俗解读\n" +
+               "- 语言通俗易懂、简洁凝练\n" +
+               "- 仅限说明该政策对个人所得税的实际影响\n" +
+               "- 字数严格控制在100字以内\n" +
+               "强制刚性规则：\n" +
+               "1. 输出结果必须是标准、可直接反序列化的合法JSON\n" +
+               "2. 禁止输出、json、注释、多余换行、前后多余字符\n" +
+               "3. 禁止额外说明、额外描述、开场白、结束语\n" +
+               "4. 严格遵循固定JSON结构输出，格式不可错乱\n" +
+               "固定返回模板：\n" +
+               "{\"rules\":[{\"name\":\"子女教育\",\"amount\":1000,\"unit\":\"per_month\"}],\"summary\":\"政策简要通俗解读内容\"}\n" +
+               "政策内容如下：\n" +
+               content;
+    }
+
+    /**
+     * 清洗函数【优化增强版｜防各类特殊字符】
+     */
+    private String clean(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.replace("```json", "")
+                .replace("```", "")
+                .replace("\t", "")
+                .replace("\r", "")
+                .trim(); // 把 strip() 改成 trim()
     }
 }

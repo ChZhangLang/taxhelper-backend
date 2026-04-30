@@ -22,6 +22,10 @@ public class PolicyVO {
     private LocalDateTime createTime;
     /** 关联的申报指引（仅政策类型为3时返回） */
     private List<GuideVO> guideList;
+    /** AI政策解读 */
+    private String aiSummary;
+    /** AI提取的计税规则JSON */
+    private String aiRules;
 
     // 政策类型转中文（工具方法）
     public void setTypeDesc(Integer type) {
