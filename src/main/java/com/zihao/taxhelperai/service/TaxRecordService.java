@@ -7,6 +7,7 @@ import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
 import com.zihao.taxhelperai.model.entity.TaxRecord;
 import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
+import com.zihao.taxhelperai.model.vo.TaxStatsVO;
 
 import java.math.BigDecimal;
 
@@ -53,4 +54,11 @@ public interface TaxRecordService extends IService<TaxRecord> {
      * @return 应缴税额
      */
     BigDecimal calculateAnnualTax(BigDecimal income, BigDecimal insurance, BigDecimal deduct);
+
+    /**
+     * 获取税收统计分析数据
+     *
+     * @return 统计VO
+     */
+    TaxStatsVO getTaxStats();
 }

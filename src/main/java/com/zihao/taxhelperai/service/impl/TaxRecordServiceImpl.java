@@ -10,10 +10,13 @@ import com.zihao.taxhelperai.mapper.TaxRecordMapper;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxCalculateRequest;
 import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
 import com.zihao.taxhelperai.model.entity.TaxRecord;
+import com.zihao.taxhelperai.model.entity.User;
 import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
+import com.zihao.taxhelperai.model.vo.TaxStatsVO;
 import com.zihao.taxhelperai.service.SpecialDeductionService;
 import com.zihao.taxhelperai.service.TaxRecordService;
+import com.zihao.taxhelperai.service.UserService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -32,13 +36,14 @@ import java.util.stream.Collectors;
 @Service
 public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord> implements TaxRecordService {
 
-    // 个税起征点（月薪）
     private static final BigDecimal MONTHLY_THRESHOLD = new BigDecimal("5000");
-    // 个税起征点（年度）
     private static final BigDecimal ANNUAL_THRESHOLD = new BigDecimal("60000");
 
     @Autowired
     private SpecialDeductionService specialDeductionService;
+
+    @Autowired
+    private UserService userService;
 
     @Override
     public TaxCalculateVO calculateAndSaveTax(TaxCalculateRequest taxCalculateRequest, Long userId) {
@@ -124,16 +129,21 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
 
     @Override
     public Page<TaxRecordVO> listTaxRecordVOByPage(TaxRecordQueryRequest taxRecordQueryRequest) {
-        // 1. 分页参数处理（保留原有正确逻辑）
         long current = Math.max(taxRecordQueryRequest.getCurrent(), 1);
         long size = Math.min(taxRecordQueryRequest.getPageSize(), 100);
-//        long size = Math.max(Math.min(taxRecordQueryRequest.getPageSize(), 100), 1);
 
-        // 2. 执行分页查询（MyBatis-Plus 自动封装 total + records）
         Page<TaxRecord> taxRecordPage = this.page(new Page<>(current, size), getQueryWrapper(taxRecordQueryRequest));
 
-        // 3. 核心修复：调用 VO 类的静态转换方法，完成批量转换
-        Page<TaxRecordVO> taxRecordVOPage = (Page<TaxRecordVO>) taxRecordPage.convert(TaxRecordVO::objToVo);
+        Page<TaxRecordVO> taxRecordVOPage = (Page<TaxRecordVO>) taxRecordPage.convert(record -> {
+            TaxRecordVO vo = TaxRecordVO.objToVo(record);
+            if (vo != null && vo.getUserId() != null) {
+                User user = userService.getById(vo.getUserId());
+                if (user != null) {
+                    vo.setUserName(user.getRealName());
+                }
+            }
+            return vo;
+        });
 
         return taxRecordVOPage;
     }
@@ -252,19 +262,36 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
 
         Long userId = taxRecordQueryRequest.getUserId();
         Integer calcType = taxRecordQueryRequest.getCalcType();
+        Integer year = taxRecordQueryRequest.getYear();
+        Integer month = taxRecordQueryRequest.getMonth();
 
-        // 拼接条件
         if (userId != null) {
             queryWrapper.eq("userId", userId);
         }
         if (calcType != null) {
             queryWrapper.eq("calcType", calcType);
         }
+        if (year != null) {
+            queryWrapper.apply("YEAR(calcTime) = {0}", year);
+        }
+        if (month != null) {
+            queryWrapper.apply("MONTH(calcTime) = {0}", month);
+        }
 
-        // 按计算时间降序
         queryWrapper.orderByDesc("calcTime");
 
         return queryWrapper;
+    }
+
+    @Override
+    public TaxStatsVO getTaxStats() {
+        TaxStatsVO statsVO = new TaxStatsVO();
+        statsVO.setTotalCount(baseMapper.selectTotalCount());
+        statsVO.setCurrentMonthTax(baseMapper.selectCurrentMonthTax());
+        statsVO.setCurrentYearTax(baseMapper.selectCurrentYearTax());
+        statsVO.setUserSummaryList(baseMapper.selectUserTaxSummary());
+        statsVO.setMonthSummaryList(baseMapper.selectMonthTaxSummary());
+        return statsVO;
     }
 
 //    /**

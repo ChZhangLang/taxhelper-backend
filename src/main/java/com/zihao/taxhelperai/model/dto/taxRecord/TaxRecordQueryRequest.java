@@ -22,4 +22,14 @@ public class TaxRecordQueryRequest extends PageRequest {
      * 计算类型 1-月薪 2-年度汇算
      */
     private Integer calcType;
+
+    /**
+     * 年份筛选
+     */
+    private Integer year;
+
+    /**
+     * 月份筛选
+     */
+    private Integer month;
 }

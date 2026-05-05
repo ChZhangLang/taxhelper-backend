@@ -25,6 +25,16 @@ public class TaxRecordVO implements Serializable {
     private Long id;
 
     /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
+     * 用户名称（管理员视图用）
+     */
+    private String userName;
+
+    /**
      * 收入金额
      */
     private BigDecimal income;

@@ -6,13 +6,13 @@
 
     <resultMap id="BaseResultMap" type="com.zihao.taxhelperai.model.entity.TaxRecord">
             <id property="id" column="id" jdbcType="INTEGER"/>
-            <result property="userId" column="user_id" jdbcType="INTEGER"/>
+            <result property="userId" column="userId" jdbcType="INTEGER"/>
             <result property="income" column="income" jdbcType="DECIMAL"/>
             <result property="insurance" column="insurance" jdbcType="DECIMAL"/>
             <result property="deduct" column="deduct" jdbcType="DECIMAL"/>
-            <result property="taxAmount" column="tax_amount" jdbcType="DECIMAL"/>
-            <result property="calcType" column="calc_type" jdbcType="TINYINT"/>
-            <result property="calcTime" column="calc_time" jdbcType="TIMESTAMP"/>
+            <result property="taxAmount" column="taxAmount" jdbcType="DECIMAL"/>
+            <result property="calcType" column="calcType" jdbcType="TINYINT"/>
+            <result property="calcTime" column="calcTime" jdbcType="TIMESTAMP"/>
             <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
     </resultMap>
 
@@ -21,4 +21,50 @@
         insurance,deduct,taxAmount,
         calcType,calcTime,isDelete
     </sql>
+
+    <select id="selectTotalCount" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM tax_record WHERE isDelete = 0
+    </select>
+
+    <select id="selectCurrentMonthTax" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(taxAmount), 0)
+        FROM tax_record
+        WHERE isDelete = 0
+          AND YEAR(calcTime) = YEAR(CURDATE())
+          AND MONTH(calcTime) = MONTH(CURDATE())
+    </select>
+
+    <select id="selectCurrentYearTax" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(taxAmount), 0)
+        FROM tax_record
+        WHERE isDelete = 0
+          AND YEAR(calcTime) = YEAR(CURDATE())
+    </select>
+
+    <select id="selectUserTaxSummary" resultType="com.zihao.taxhelperai.model.vo.TaxStatsVO$UserTaxSummary">
+        SELECT
+            tr.userId as userId,
+            u.realName as userName,
+            COUNT(*) as recordCount,
+            COALESCE(SUM(tr.taxAmount), 0) as totalTax
+        FROM tax_record tr
+        LEFT JOIN user u ON tr.userId = u.id
+        WHERE tr.isDelete = 0
+        GROUP BY tr.userId, u.realName
+        ORDER BY totalTax DESC
+        LIMIT 10
+    </select>
+
+    <select id="selectMonthTaxSummary" resultType="com.zihao.taxhelperai.model.vo.TaxStatsVO$MonthTaxSummary">
+        SELECT
+            YEAR(calcTime) as year,
+            MONTH(calcTime) as month,
+            COUNT(*) as recordCount,
+            COALESCE(SUM(taxAmount), 0) as totalTax
+        FROM tax_record
+        WHERE isDelete = 0
+        GROUP BY YEAR(calcTime), MONTH(calcTime)
+        ORDER BY year DESC, month DESC
+        LIMIT 12
+    </select>
 </mapper>

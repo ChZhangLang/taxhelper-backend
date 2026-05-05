@@ -12,6 +12,7 @@ import com.zihao.taxhelperai.model.dto.taxRecord.TaxRecordQueryRequest;
 import com.zihao.taxhelperai.model.entity.User;
 import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
+import com.zihao.taxhelperai.model.vo.TaxStatsVO;
 import com.zihao.taxhelperai.service.TaxRecordService;
 import com.zihao.taxhelperai.service.UserService;
 import org.springframework.web.bind.annotation.*;
@@ -95,5 +96,40 @@ public class TaxRecordController {
         // 2. 分页查询
         Page<TaxRecordVO> taxRecordVOPage = taxRecordService.listTaxRecordVOByPage(taxRecordQueryRequest);
         return ResultUtils.success(taxRecordVOPage);
+    }
+
+    /**
+     * 获取税收统计分析数据（仅管理员）
+     *
+     * @param request 请求上下文
+     * @return 统计VO
+     */
+    @GetMapping("/record/stats")
+    public BaseResponse<TaxStatsVO> getTaxStats(HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        if (!UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "仅管理员可查看统计数据");
+        }
+        TaxStatsVO statsVO = taxRecordService.getTaxStats();
+        return ResultUtils.success(statsVO);
+    }
+
+    /**
+     * 删除计税记录（仅管理员）
+     *
+     * @param id 记录ID
+     * @param request 请求上下文
+     * @return 操作结果
+     */
+    @DeleteMapping("/record/{id}")
+    public BaseResponse<Boolean> deleteTaxRecord(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        if (!UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "仅管理员可删除记录");
+        }
+        boolean result = taxRecordService.removeById(id);
+        return ResultUtils.success(result);
     }
 }
