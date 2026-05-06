@@ -40,8 +40,29 @@ public interface TaxRecordMapper extends BaseMapper<TaxRecord> {
      * 按月份维度汇总税收
      */
     List<TaxStatsVO.MonthTaxSummary> selectMonthTaxSummary();
+
+    /**
+     * 获取用户指定年度的累计收入
+     */
+    BigDecimal getCumulativeIncome(@Param("userId") Long userId, @Param("taxYear") Integer taxYear);
+
+    /**
+     * 获取用户指定年度的累计五险一金
+     */
+    BigDecimal getCumulativeInsurance(@Param("userId") Long userId, @Param("taxYear") Integer taxYear);
+
+    /**
+     * 获取用户指定年度的累计专项附加扣除
+     */
+    BigDecimal getCumulativeDeduct(@Param("userId") Long userId, @Param("taxYear") Integer taxYear);
+
+    /**
+     * 获取用户指定年度的累计已预扣税
+     */
+    BigDecimal getCumulativeTax(@Param("userId") Long userId, @Param("taxYear") Integer taxYear);
+
+    /**
+     * 获取用户指定年度所有月度记录
+     */
+    List<TaxRecord> selectYearRecords(@Param("userId") Long userId, @Param("taxYear") Integer taxYear);
 }
-
-
-
-

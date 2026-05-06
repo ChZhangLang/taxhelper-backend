@@ -8,8 +8,10 @@ import com.zihao.taxhelperai.model.entity.TaxRecord;
 import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
 import com.zihao.taxhelperai.model.vo.TaxStatsVO;
+import com.zihao.taxhelperai.model.vo.TaxSettlementVO;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * 计税记录服务接口
@@ -19,13 +21,40 @@ import java.math.BigDecimal;
 public interface TaxRecordService extends IService<TaxRecord> {
 
     /**
-     * 计算个税并保存记录
+     * 计算个税并保存记录（原有方法，保留兼容）
      *
      * @param taxCalculateRequest 计算请求
      * @param userId 登录用户ID
      * @return 计算结果VO
      */
     TaxCalculateVO calculateAndSaveTax(TaxCalculateRequest taxCalculateRequest, Long userId);
+
+    /**
+     * 使用累计预扣法计算月度税额
+     *
+     * @param taxCalculateRequest 计算请求
+     * @param userId 登录用户ID
+     * @return 计算结果VO
+     */
+    TaxCalculateVO calculateMonthlyWithCumulative(TaxCalculateRequest taxCalculateRequest, Long userId);
+
+    /**
+     * 计算年度汇算清缴
+     *
+     * @param userId 用户ID
+     * @param year 年度
+     * @return 汇算结果VO
+     */
+    TaxSettlementVO calculateAnnualSettlement(Long userId, Integer year);
+
+    /**
+     * 获取用户当年累计数据
+     *
+     * @param userId 用户ID
+     * @param year 年度
+     * @return 累计数据Map
+     */
+    Map<String, BigDecimal> getCumulativeData(Long userId, Integer year);
 
     /**
      * 分页查询计税记录VO

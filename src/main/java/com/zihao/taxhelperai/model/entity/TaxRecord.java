@@ -53,6 +53,46 @@ public class TaxRecord implements Serializable {
     private Integer calcType;
 
     /**
+     * 计税年度
+     */
+    private Integer taxYear;
+
+    /**
+     * 计税月份（1-12）
+     */
+    private Integer taxMonth;
+
+    /**
+     * 当年累计收入
+     */
+    private BigDecimal cumulativeIncome;
+
+    /**
+     * 当年累计五险一金
+     */
+    private BigDecimal cumulativeInsurance;
+
+    /**
+     * 当年累计专项附加扣除
+     */
+    private BigDecimal cumulativeDeduct;
+
+    /**
+     * 当年累计已预扣税额
+     */
+    private BigDecimal cumulativeTax;
+
+    /**
+     * 应纳税所得额
+     */
+    private BigDecimal taxableIncome;
+
+    /**
+     * 税前收入（月度收入-五险一金）
+     */
+    private BigDecimal beforeTaxIncome;
+
+    /**
      * 计算时间
      */
     private Date calcTime;

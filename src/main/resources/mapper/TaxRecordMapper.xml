@@ -5,13 +5,21 @@
 <mapper namespace="com.zihao.taxhelperai.mapper.TaxRecordMapper">
 
     <resultMap id="BaseResultMap" type="com.zihao.taxhelperai.model.entity.TaxRecord">
-            <id property="id" column="id" jdbcType="INTEGER"/>
-            <result property="userId" column="userId" jdbcType="INTEGER"/>
+            <id property="id" column="id" jdbcType="BIGINT"/>
+            <result property="userId" column="userId" jdbcType="BIGINT"/>
             <result property="income" column="income" jdbcType="DECIMAL"/>
             <result property="insurance" column="insurance" jdbcType="DECIMAL"/>
             <result property="deduct" column="deduct" jdbcType="DECIMAL"/>
             <result property="taxAmount" column="taxAmount" jdbcType="DECIMAL"/>
             <result property="calcType" column="calcType" jdbcType="TINYINT"/>
+            <result property="taxYear" column="taxYear" jdbcType="INTEGER"/>
+            <result property="taxMonth" column="taxMonth" jdbcType="INTEGER"/>
+            <result property="cumulativeIncome" column="cumulativeIncome" jdbcType="DECIMAL"/>
+            <result property="cumulativeInsurance" column="cumulativeInsurance" jdbcType="DECIMAL"/>
+            <result property="cumulativeDeduct" column="cumulativeDeduct" jdbcType="DECIMAL"/>
+            <result property="cumulativeTax" column="cumulativeTax" jdbcType="DECIMAL"/>
+            <result property="taxableIncome" column="taxableIncome" jdbcType="DECIMAL"/>
+            <result property="beforeTaxIncome" column="beforeTaxIncome" jdbcType="DECIMAL"/>
             <result property="calcTime" column="calcTime" jdbcType="TIMESTAMP"/>
             <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
     </resultMap>
@@ -19,7 +27,10 @@
     <sql id="Base_Column_List">
         id,userId,income,
         insurance,deduct,taxAmount,
-        calcType,calcTime,isDelete
+        calcType,taxYear,taxMonth,
+        cumulativeIncome,cumulativeInsurance,cumulativeDeduct,
+        cumulativeTax,taxableIncome,beforeTaxIncome,
+        calcTime,isDelete
     </sql>
 
     <select id="selectTotalCount" resultType="java.lang.Long">
@@ -66,5 +77,45 @@
         GROUP BY YEAR(calcTime), MONTH(calcTime)
         ORDER BY year DESC, month DESC
         LIMIT 12
+    </select>
+
+    <select id="getCumulativeIncome" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(income), 0)
+        FROM tax_record
+        WHERE userId = #{userId}
+          AND taxYear = #{taxYear}
+          AND isDelete = 0
+    </select>
+
+    <select id="getCumulativeInsurance" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(insurance), 0)
+        FROM tax_record
+        WHERE userId = #{userId}
+          AND taxYear = #{taxYear}
+          AND isDelete = 0
+    </select>
+
+    <select id="getCumulativeDeduct" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(deduct), 0)
+        FROM tax_record
+        WHERE userId = #{userId}
+          AND taxYear = #{taxYear}
+          AND isDelete = 0
+    </select>
+
+    <select id="getCumulativeTax" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(taxAmount), 0)
+        FROM tax_record
+        WHERE userId = #{userId}
+          AND taxYear = #{taxYear}
+          AND isDelete = 0
+    </select>
+
+    <select id="selectYearRecords" resultMap="BaseResultMap">
+        SELECT * FROM tax_record
+        WHERE userId = #{userId}
+          AND taxYear = #{taxYear}
+          AND isDelete = 0
+        ORDER BY taxMonth ASC
     </select>
 </mapper>

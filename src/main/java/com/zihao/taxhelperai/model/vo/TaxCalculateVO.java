@@ -46,4 +46,34 @@ public class TaxCalculateVO {
      * 计算时间
      */
     private Date calcTime;
+
+    /**
+     * 计税月份
+     */
+    private Integer month;
+
+    /**
+     * 累计收入
+     */
+    private BigDecimal cumulativeIncome;
+
+    /**
+     * 累计五险一金
+     */
+    private BigDecimal cumulativeInsurance;
+
+    /**
+     * 累计专项附加扣除
+     */
+    private BigDecimal cumulativeDeduct;
+
+    /**
+     * 累计已预扣税
+     */
+    private BigDecimal cumulativeTax;
+
+    /**
+     * 税后收入
+     */
+    private BigDecimal afterTaxIncome;
 }
