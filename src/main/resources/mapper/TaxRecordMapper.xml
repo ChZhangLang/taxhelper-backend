@@ -84,6 +84,7 @@
         FROM tax_record
         WHERE userId = #{userId}
           AND taxYear = #{taxYear}
+          AND taxMonth != 0
           AND isDelete = 0
     </select>
 
@@ -92,6 +93,7 @@
         FROM tax_record
         WHERE userId = #{userId}
           AND taxYear = #{taxYear}
+          AND taxMonth != 0
           AND isDelete = 0
     </select>
 
@@ -100,6 +102,7 @@
         FROM tax_record
         WHERE userId = #{userId}
           AND taxYear = #{taxYear}
+          AND taxMonth != 0
           AND isDelete = 0
     </select>
 
@@ -108,6 +111,7 @@
         FROM tax_record
         WHERE userId = #{userId}
           AND taxYear = #{taxYear}
+          AND taxMonth != 0
           AND isDelete = 0
     </select>
 

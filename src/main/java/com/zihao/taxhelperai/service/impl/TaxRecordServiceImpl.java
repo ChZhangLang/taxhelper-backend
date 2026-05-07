@@ -235,6 +235,11 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         List<TaxSettlementVO.MonthlyDetail> monthlyDetails = new ArrayList<>();
 
         for (TaxRecord record : yearRecords) {
+            // 跳过年度汇算记录（taxMonth = 0），只处理月度计税记录
+            if (record.getTaxMonth() == 0) {
+                continue;
+            }
+            
             totalIncome = totalIncome.add(record.getIncome());
             totalInsurance = totalInsurance.add(record.getInsurance());
             totalDeduct = totalDeduct.add(record.getDeduct());
@@ -286,6 +291,53 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         }
 
         vo.setMonthlyDetails(monthlyDetails);
+
+        // 先检查是否已存在该年度的汇算记录
+        QueryWrapper<TaxRecord> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", userId)
+                    .eq("taxYear", year)
+                    .eq("taxMonth", 0)
+                    .eq("isDelete", 0);
+        List<TaxRecord> existingRecords = this.list(queryWrapper);
+        
+        if (!existingRecords.isEmpty()) {
+            // 如果存在多条记录，删除多余的，只保留第一条
+            for (int i = 1; i < existingRecords.size(); i++) {
+                this.removeById(existingRecords.get(i).getId());
+            }
+            // 更新保留的那条记录
+            TaxRecord existingRecord = existingRecords.get(0);
+            existingRecord.setIncome(totalIncome);
+            existingRecord.setInsurance(totalInsurance);
+            existingRecord.setDeduct(totalDeduct);
+            existingRecord.setTaxAmount(annualTaxAmount);
+            existingRecord.setTaxableIncome(annualTaxableIncome);
+            existingRecord.setCumulativeIncome(totalIncome);
+            existingRecord.setCumulativeInsurance(totalInsurance);
+            existingRecord.setCumulativeDeduct(totalDeduct);
+            existingRecord.setCumulativeTax(totalPaidTax);
+            existingRecord.setCalcTime(new Date());
+            this.updateById(existingRecord);
+        } else {
+            // 插入新的年度汇算记录
+            TaxRecord taxRecord = new TaxRecord();
+            taxRecord.setUserId(userId);
+            taxRecord.setIncome(totalIncome);
+            taxRecord.setInsurance(totalInsurance);
+            taxRecord.setDeduct(totalDeduct);
+            taxRecord.setTaxAmount(annualTaxAmount);
+            taxRecord.setTaxableIncome(annualTaxableIncome);
+            taxRecord.setCalcType(2);
+            taxRecord.setTaxYear(year);
+            taxRecord.setTaxMonth(0);
+            taxRecord.setCumulativeIncome(totalIncome);
+            taxRecord.setCumulativeInsurance(totalInsurance);
+            taxRecord.setCumulativeDeduct(totalDeduct);
+            taxRecord.setCumulativeTax(totalPaidTax);
+            taxRecord.setCalcTime(new Date());
+            taxRecord.setIsDelete(0);
+            this.save(taxRecord);
+        }
 
         return vo;
     }
