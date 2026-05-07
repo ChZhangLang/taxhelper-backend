@@ -65,6 +65,16 @@ public class TaxRecordVO implements Serializable {
     private String calcTypeName;
 
     /**
+     * 计税年度
+     */
+    private Integer taxYear;
+
+    /**
+     * 计税月份
+     */
+    private Integer taxMonth;
+
+    /**
      * 计算时间
      */
     private Date calcTime;

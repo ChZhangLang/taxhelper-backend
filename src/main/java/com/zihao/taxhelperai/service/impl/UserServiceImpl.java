@@ -100,7 +100,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             user.setUserAccount(userAccount); // 手机号作为账号
             user.setUserPassword(encryptPassword);
             user.setRealName(realName); // 新增：真实姓名
-            user.setIdCard(encryptIdCard(idCard)); // 新增：身份证号（加密存储）
+            user.setIdCard(idCard); // 新增：身份证号（明文存储）
             user.setTaxRegion(StringUtils.isBlank(taxRegion) ? "" : taxRegion); // 新增：税务地区（可选）
             user.setUserRole("user"); // 默认普通用户
             // 逻辑删除字段默认0（未删除），无需手动赋值
@@ -147,27 +147,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         Matcher matcher = ID_CARD_PATTERN.matcher(idCard);
         return matcher.matches();
-    }
-
-    /**
-     * 身份证号加密存储（使用MD5加密）
-     */
-    private String encryptIdCard(String idCard) {
-        if (StringUtils.isBlank(idCard)) {
-            return idCard;
-        }
-        return DigestUtils.md5DigestAsHex((SALT + idCard).getBytes());
-    }
-
-    /**
-     * 身份证号验证（用于登录时验证）
-     */
-    private boolean verifyIdCard(String inputIdCard, String encryptedIdCard) {
-        if (StringUtils.isBlank(inputIdCard) || StringUtils.isBlank(encryptedIdCard)) {
-            return false;
-        }
-        String encryptedInput = encryptIdCard(inputIdCard);
-        return encryptedInput.equals(encryptedIdCard);
     }
 
     /**

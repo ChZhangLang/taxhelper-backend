@@ -277,7 +277,7 @@ public class UserController {
     }
 
     /**
-     * 根据 id 获取包装类
+     * 根据 id 获取包装类（用户可查看自己，管理员可查看所有）
      *
      * @param id
      * @param request
@@ -285,31 +285,46 @@ public class UserController {
      */
     @GetMapping("/get/vo")
     public BaseResponse<UserVO> getUserVOById(long id, HttpServletRequest request) {
-        BaseResponse<User> response = getUserById(id, request);
-        User user = response.getData();
+        if (id <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        // 普通用户只能查看自己的信息
+        if (UserConstant.DEFAULT_ROLE.equals(loginUser.getUserRole()) && id != loginUser.getId()) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "仅可查看自己的信息");
+        }
+        User user = userService.getById(id);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
         return ResultUtils.success(userService.getUserVO(user));
     }
 
     /**
-     * 分页获取用户列表（仅管理员）
+     * 分页获取用户列表（普通用户仅可查看自己，管理员可查看所有）
      *
      * @param userQueryRequest
      * @param request
      * @return
      */
     @PostMapping("/list/page")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
         long current = userQueryRequest.getCurrent();
         long size = userQueryRequest.getPageSize();
+        User loginUser = userService.getLoginUser(request);
+        // 普通用户只能查询自己的信息
+        if (UserConstant.DEFAULT_ROLE.equals(loginUser.getUserRole())) {
+            if (userQueryRequest == null) {
+                userQueryRequest = new UserQueryRequest();
+            }
+            userQueryRequest.setId(loginUser.getId());
+        }
         Page<User> userPage = userService.page(new Page<>(current, size),
                 userService.getQueryWrapper(userQueryRequest));
         return ResultUtils.success(userPage);
     }
 
     /**
-     * 分页获取用户封装列表
+     * 分页获取用户封装列表（普通用户仅可查看自己，管理员可查看所有）
      *
      * @param userQueryRequest
      * @param request
@@ -325,6 +340,14 @@ public class UserController {
         long size = userQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        // 普通用户只能查询自己的信息
+        if (UserConstant.DEFAULT_ROLE.equals(loginUser.getUserRole())) {
+            if (userQueryRequest == null) {
+                userQueryRequest = new UserQueryRequest();
+            }
+            userQueryRequest.setId(loginUser.getId());
+        }
         Page<User> userPage = userService.page(new Page<>(current, size),
                 userService.getQueryWrapper(userQueryRequest));
         Page<UserVO> userVOPage = new Page<>(current, size, userPage.getTotal());

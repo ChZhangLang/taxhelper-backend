@@ -397,10 +397,10 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
             queryWrapper.eq("calcType", calcType);
         }
         if (year != null) {
-            queryWrapper.apply("YEAR(calcTime) = {0}", year);
+            queryWrapper.eq("taxYear", year);
         }
         if (month != null) {
-            queryWrapper.apply("MONTH(calcTime) = {0}", month);
+            queryWrapper.eq("taxMonth", month);
         }
 
         queryWrapper.orderByDesc("calcTime");
