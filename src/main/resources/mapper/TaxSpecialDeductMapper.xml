@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zihao.taxhelperai.mapper.TaxSpecialDeductMapper">
+
+    <select id="selectByUserIdAndType" resultType="com.zihao.taxhelperai.model.entity.TaxSpecialDeduct">
+        SELECT 
+            id,
+            user_id AS userId,
+            deduct_type AS deductType,
+            start_date AS startDate,
+            end_date AS endDate,
+            status,
+            create_time AS createTime,
+            update_time AS updateTime,
+            is_delete AS isDelete
+        FROM tax_special_deduct
+        WHERE user_id = #{userId}
+          AND deduct_type = #{deductType}
+          AND is_delete = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectActiveByUserId" resultType="com.zihao.taxhelperai.model.entity.TaxSpecialDeduct">
+        SELECT 
+            id,
+            user_id AS userId,
+            deduct_type AS deductType,
+            start_date AS startDate,
+            end_date AS endDate,
+            status,
+            create_time AS createTime,
+            update_time AS updateTime,
+            is_delete AS isDelete
+        FROM tax_special_deduct
+        WHERE user_id = #{userId}
+          AND status = 1
+          AND is_delete = 0
+        ORDER BY deduct_type
+    </select>
+
+    <select id="selectActiveByTypes" resultType="com.zihao.taxhelperai.model.entity.TaxSpecialDeduct">
+        SELECT 
+            id,
+            user_id AS userId,
+            deduct_type AS deductType,
+            start_date AS startDate,
+            end_date AS endDate,
+            status,
+            create_time AS createTime,
+            update_time AS updateTime,
+            is_delete AS isDelete
+        FROM tax_special_deduct
+        WHERE user_id = #{userId}
+          AND deduct_type IN
+          <foreach collection="types" item="type" open="(" separator="," close=")">
+            #{type}
+          </foreach>
+          AND status = 1
+          AND is_delete = 0
+        ORDER BY deduct_type
+    </select>
+
+</mapper>

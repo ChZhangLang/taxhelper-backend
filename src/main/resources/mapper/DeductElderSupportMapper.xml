@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zihao.taxhelperai.mapper.DeductElderSupportMapper">
+
+    <select id="selectByDeductId" resultType="com.zihao.taxhelperai.model.entity.DeductElderSupport">
+        SELECT 
+            id,
+            deduct_id AS deductId,
+            elder_name AS elderName,
+            elder_id_card AS elderIdCard,
+            elder_age AS elderAge,
+            is_only_child AS isOnlyChild,
+            shared_count AS sharedCount,
+            shared_ratio AS sharedRatio,
+            monthly_amount AS monthlyAmount
+        FROM deduct_elder_support
+        WHERE deduct_id = #{deductId}
+    </select>
+
+    <delete id="deleteByDeductId">
+        DELETE FROM deduct_elder_support
+        WHERE deduct_id = #{deductId}
+    </delete>
+
+</mapper>

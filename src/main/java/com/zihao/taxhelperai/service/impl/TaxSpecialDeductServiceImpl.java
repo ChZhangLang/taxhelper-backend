@@ -1,0 +1,337 @@
+package com.zihao.taxhelperai.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zihao.taxhelperai.common.ErrorCode;
+import com.zihao.taxhelperai.exception.BusinessException;
+import com.zihao.taxhelperai.model.context.DeductContext;
+import com.zihao.taxhelperai.model.dto.specialDeduct.*;
+import com.zihao.taxhelperai.model.entity.*;
+import com.zihao.taxhelperai.model.vo.TaxSpecialDeductVO;
+import com.zihao.taxhelperai.mapper.*;
+import com.zihao.taxhelperai.service.TaxSpecialDeductService;
+import com.zihao.taxhelperai.service.rule.DeductRuleEngine;
+import com.zihao.taxhelperai.service.rule.impl.MutualExclusionValidator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMapper, TaxSpecialDeduct> implements TaxSpecialDeductService {
+
+    private final DeductRuleEngine deductRuleEngine;
+    private final MutualExclusionValidator mutualExclusionValidator;
+    private final DeductChildEducationMapper childEducationMapper;
+    private final DeductHouseLoanMapper houseLoanMapper;
+    private final DeductHouseRentMapper houseRentMapper;
+    private final DeductElderSupportMapper elderSupportMapper;
+    private final DeductContinueEducationMapper continueEducationMapper;
+    private final DeductSeriousIllnessMapper seriousIllnessMapper;
+
+    @Autowired
+    public TaxSpecialDeductServiceImpl(DeductRuleEngine deductRuleEngine,
+                                       MutualExclusionValidator mutualExclusionValidator,
+                                       DeductChildEducationMapper childEducationMapper,
+                                       DeductHouseLoanMapper houseLoanMapper,
+                                       DeductHouseRentMapper houseRentMapper,
+                                       DeductElderSupportMapper elderSupportMapper,
+                                       DeductContinueEducationMapper continueEducationMapper,
+                                       DeductSeriousIllnessMapper seriousIllnessMapper) {
+        this.deductRuleEngine = deductRuleEngine;
+        this.mutualExclusionValidator = mutualExclusionValidator;
+        this.childEducationMapper = childEducationMapper;
+        this.houseLoanMapper = houseLoanMapper;
+        this.houseRentMapper = houseRentMapper;
+        this.elderSupportMapper = elderSupportMapper;
+        this.continueEducationMapper = continueEducationMapper;
+        this.seriousIllnessMapper = seriousIllnessMapper;
+    }
+
+    @Override
+    @Transactional
+    public TaxSpecialDeduct addChildEducation(Long userId, ChildEducationDTO dto) {
+        DeductContext context = new DeductContext();
+        context.setUserId(userId);
+        context.setDeductType(1);
+        context.put("childCount", dto.getChildCount() != null ? dto.getChildCount() : 1);
+        context.put("isShared", dto.getIsShared());
+        context.put("sharedRatio", dto.getSharedRatio() != null ? dto.getSharedRatio() : new BigDecimal("100"));
+
+        deductRuleEngine.executeValidate(1, context);
+        BigDecimal amount = deductRuleEngine.executeCalculate(1, context);
+
+        return saveDeductWithDetail(userId, 1, dto.getStartDate(), dto.getEndDate(), amount, dto, null, null, null, null, null);
+    }
+
+    @Override
+    @Transactional
+    public TaxSpecialDeduct addHouseLoan(Long userId, HouseLoanDTO dto) {
+        mutualExclusionValidator.validateHouseMutualExclusion(userId, 4, dto.getStartDate(), dto.getEndDate());
+
+        DeductContext context = new DeductContext();
+        context.setUserId(userId);
+        context.setDeductType(4);
+        context.put("isFirstHouse", dto.getIsFirstHouse());
+        context.put("totalMonths", dto.getTotalMonths());
+
+        deductRuleEngine.executeValidate(4, context);
+        BigDecimal amount = deductRuleEngine.executeCalculate(4, context);
+
+        return saveDeductWithDetail(userId, 4, dto.getStartDate(), dto.getEndDate(), amount, null, dto, null, null, null, null);
+    }
+
+    @Override
+    @Transactional
+    public TaxSpecialDeduct addHouseRent(Long userId, HouseRentDTO dto) {
+        mutualExclusionValidator.validateHouseMutualExclusion(userId, 5, dto.getStartDate(), dto.getEndDate());
+
+        DeductContext context = new DeductContext();
+        context.setUserId(userId);
+        context.setDeductType(5);
+        context.put("cityLevel", dto.getCityLevel());
+        context.put("hasHouseInCity", dto.getHasHouseInCity());
+
+        deductRuleEngine.executeValidate(5, context);
+        BigDecimal amount = deductRuleEngine.executeCalculate(5, context);
+
+        return saveDeductWithDetail(userId, 5, dto.getStartDate(), dto.getEndDate(), amount, null, null, dto, null, null, null);
+    }
+
+    @Override
+    @Transactional
+    public TaxSpecialDeduct addElderSupport(Long userId, ElderSupportDTO dto) {
+        DeductContext context = new DeductContext();
+        context.setUserId(userId);
+        context.setDeductType(6);
+        context.put("isOnlyChild", dto.getIsOnlyChild());
+        context.put("elderAge", dto.getElderAge());
+        context.put("sharedRatio", dto.getSharedRatio() != null ? dto.getSharedRatio() : new BigDecimal("100"));
+
+        deductRuleEngine.executeValidate(6, context);
+        BigDecimal amount = deductRuleEngine.executeCalculate(6, context);
+
+        return saveDeductWithDetail(userId, 6, dto.getStartDate(), dto.getEndDate(), amount, null, null, null, dto, null, null);
+    }
+
+    @Override
+    @Transactional
+    public TaxSpecialDeduct addContinueEducation(Long userId, ContinueEducationDTO dto) {
+        DeductContext context = new DeductContext();
+        context.setUserId(userId);
+        context.setDeductType(2);
+        context.put("educationType", dto.getEducationType());
+
+        deductRuleEngine.executeValidate(2, context);
+        BigDecimal amount = deductRuleEngine.executeCalculate(2, context);
+
+        return saveDeductWithDetail(userId, 2, dto.getStartDate(), dto.getEndDate(), amount, null, null, null, null, dto, null);
+    }
+
+    @Override
+    @Transactional
+    public TaxSpecialDeduct addSeriousIllness(Long userId, SeriousIllnessDTO dto) {
+        DeductContext context = new DeductContext();
+        context.setUserId(userId);
+        context.setDeductType(3);
+        context.put("patientRelation", dto.getPatientRelation());
+        context.put("selfPayExpense", dto.getSelfPayExpense());
+
+        deductRuleEngine.executeValidate(3, context);
+        BigDecimal amount = deductRuleEngine.executeCalculate(3, context);
+
+        return saveDeductWithDetail(userId, 3, dto.getStartDate(), dto.getEndDate(), amount, null, null, null, null, null, dto);
+    }
+
+    private TaxSpecialDeduct saveDeductWithDetail(Long userId, Integer type, Date startDate, Date endDate, 
+            BigDecimal amount, ChildEducationDTO childDTO, HouseLoanDTO loanDTO, HouseRentDTO rentDTO,
+            ElderSupportDTO elderDTO, ContinueEducationDTO eduDTO, SeriousIllnessDTO illnessDTO) {
+        
+        TaxSpecialDeduct deduct = new TaxSpecialDeduct();
+        deduct.setUserId(userId);
+        deduct.setDeductType(type);
+        deduct.setStartDate(startDate);
+        deduct.setEndDate(endDate);
+        deduct.setStatus(calculateStatus(startDate, endDate));
+        deduct.setCreateTime(new Date());
+        deduct.setUpdateTime(new Date());
+        deduct.setIsDelete(0);
+        this.save(deduct);
+
+        switch (type) {
+            case 1:
+                saveChildEducation(deduct.getId(), childDTO, amount);
+                break;
+            case 2:
+                saveContinueEducation(deduct.getId(), eduDTO, amount);
+                break;
+            case 3:
+                saveSeriousIllness(deduct.getId(), illnessDTO, amount);
+                break;
+            case 4:
+                saveHouseLoan(deduct.getId(), loanDTO, amount);
+                break;
+            case 5:
+                saveHouseRent(deduct.getId(), rentDTO, amount);
+                break;
+            case 6:
+                saveElderSupport(deduct.getId(), elderDTO, amount);
+                break;
+        }
+
+        return deduct;
+    }
+
+    private void saveChildEducation(Long deductId, ChildEducationDTO dto, BigDecimal amount) {
+        DeductChildEducation child = new DeductChildEducation();
+        child.setDeductId(deductId);
+        child.setChildName(dto.getChildName());
+        child.setChildIdCard(dto.getChildIdCard());
+        child.setEducationStage(dto.getEducationStage());
+        child.setSchoolName(dto.getSchoolName());
+        child.setIsShared(dto.getIsShared());
+        child.setSharedRatio(dto.getSharedRatio() != null ? dto.getSharedRatio() : new BigDecimal("100"));
+        child.setMonthlyAmount(amount);
+        childEducationMapper.insert(child);
+    }
+
+    private void saveHouseLoan(Long deductId, HouseLoanDTO dto, BigDecimal amount) {
+        DeductHouseLoan loan = new DeductHouseLoan();
+        loan.setDeductId(deductId);
+        loan.setHouseAddress(dto.getHouseAddress());
+        loan.setIsFirstHouse(dto.getIsFirstHouse());
+        loan.setLoanBank(dto.getLoanBank());
+        loan.setLoanStartDate(dto.getLoanStartDate());
+        loan.setTotalMonths(dto.getTotalMonths() != null ? dto.getTotalMonths() : 240);
+        loan.setMonthlyAmount(amount);
+        houseLoanMapper.insert(loan);
+    }
+
+    private void saveHouseRent(Long deductId, HouseRentDTO dto, BigDecimal amount) {
+        DeductHouseRent rent = new DeductHouseRent();
+        rent.setDeductId(deductId);
+        rent.setRentAddress(dto.getRentAddress());
+        rent.setCityLevel(dto.getCityLevel());
+        rent.setHasHouseInCity(dto.getHasHouseInCity());
+        rent.setMonthlyRent(dto.getMonthlyRent());
+        rent.setMonthlyAmount(amount);
+        houseRentMapper.insert(rent);
+    }
+
+    private void saveElderSupport(Long deductId, ElderSupportDTO dto, BigDecimal amount) {
+        DeductElderSupport elder = new DeductElderSupport();
+        elder.setDeductId(deductId);
+        elder.setElderName(dto.getElderName());
+        elder.setElderIdCard(dto.getElderIdCard());
+        elder.setElderAge(dto.getElderAge());
+        elder.setIsOnlyChild(dto.getIsOnlyChild());
+        elder.setSharedCount(dto.getSharedCount() != null ? dto.getSharedCount() : 1);
+        elder.setSharedRatio(dto.getSharedRatio() != null ? dto.getSharedRatio() : new BigDecimal("100"));
+        elder.setMonthlyAmount(amount);
+        elderSupportMapper.insert(elder);
+    }
+
+    private void saveContinueEducation(Long deductId, ContinueEducationDTO dto, BigDecimal amount) {
+        DeductContinueEducation edu = new DeductContinueEducation();
+        edu.setDeductId(deductId);
+        edu.setEducationType(dto.getEducationType());
+        edu.setEducationName(dto.getEducationName());
+        edu.setInstitutionName(dto.getInstitutionName());
+        edu.setCertificateNo(dto.getCertificateNo());
+        edu.setMonthlyAmount(amount);
+        continueEducationMapper.insert(edu);
+    }
+
+    private void saveSeriousIllness(Long deductId, SeriousIllnessDTO dto, BigDecimal amount) {
+        DeductSeriousIllness illness = new DeductSeriousIllness();
+        illness.setDeductId(deductId);
+        illness.setPatientName(dto.getPatientName());
+        illness.setPatientRelation(dto.getPatientRelation());
+        illness.setTotalMedicalExpense(dto.getTotalMedicalExpense());
+        illness.setInsuranceReimburse(dto.getInsuranceReimburse());
+        illness.setSelfPayExpense(dto.getSelfPayExpense());
+        illness.setDeductibleAmount(amount);
+        illness.setYear(dto.getYear());
+        seriousIllnessMapper.insert(illness);
+    }
+
+    @Override
+    public boolean deleteDeduct(Long id, Long userId) {
+        TaxSpecialDeduct deduct = this.getById(id);
+        if (deduct == null || !deduct.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限操作此记录");
+        }
+
+        deduct.setIsDelete(1);
+        deduct.setUpdateTime(new Date());
+        return this.updateById(deduct);
+    }
+
+    @Override
+    public TaxSpecialDeduct getById(Long id) {
+        return this.getById(id);
+    }
+
+    @Override
+    public List<TaxSpecialDeductVO> listByUserId(Long userId) {
+        QueryWrapper<TaxSpecialDeduct> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId).eq("is_delete", 0).orderByDesc("create_time");
+        return this.list(wrapper).stream()
+                .map(TaxSpecialDeductVO::objToVo)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public BigDecimal getCurrentDeductAmount(Long userId) {
+        QueryWrapper<TaxSpecialDeduct> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId).eq("status", 1).eq("is_delete", 0);
+        List<TaxSpecialDeduct> deducts = this.list(wrapper);
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (TaxSpecialDeduct deduct : deducts) {
+            BigDecimal amount = getMonthlyAmount(deduct.getId(), deduct.getDeductType());
+            total = total.add(amount);
+        }
+        return total;
+    }
+
+    private BigDecimal getMonthlyAmount(Long deductId, Integer type) {
+        switch (type) {
+            case 1:
+                DeductChildEducation child = childEducationMapper.selectByDeductId(deductId);
+                return child != null ? child.getMonthlyAmount() : BigDecimal.ZERO;
+            case 2:
+                DeductContinueEducation edu = continueEducationMapper.selectByDeductId(deductId);
+                return edu != null ? edu.getMonthlyAmount() : BigDecimal.ZERO;
+            case 3:
+                DeductSeriousIllness illness = seriousIllnessMapper.selectByDeductId(deductId);
+                return illness != null ? illness.getDeductibleAmount() : BigDecimal.ZERO;
+            case 4:
+                DeductHouseLoan loan = houseLoanMapper.selectByDeductId(deductId);
+                return loan != null ? loan.getMonthlyAmount() : BigDecimal.ZERO;
+            case 5:
+                DeductHouseRent rent = houseRentMapper.selectByDeductId(deductId);
+                return rent != null ? rent.getMonthlyAmount() : BigDecimal.ZERO;
+            case 6:
+                DeductElderSupport elder = elderSupportMapper.selectByDeductId(deductId);
+                return elder != null ? elder.getMonthlyAmount() : BigDecimal.ZERO;
+            default:
+                return BigDecimal.ZERO;
+        }
+    }
+
+    private Integer calculateStatus(Date startDate, Date endDate) {
+        Date now = new Date();
+        if (now.before(startDate)) {
+            return 0;
+        } else if (now.after(endDate)) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+}
