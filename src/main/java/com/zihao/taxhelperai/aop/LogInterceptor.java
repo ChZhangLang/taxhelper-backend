@@ -38,9 +38,17 @@ public class LogInterceptor {
         // 生成请求唯一 id
         String requestId = UUID.randomUUID().toString();
         String url = httpServletRequest.getRequestURI();
-        // 获取请求参数
+        // 获取请求参数（过滤掉HttpServletRequest和HttpServletResponse）
         Object[] args = point.getArgs();
-        String reqParam = "[" + StringUtils.join(args, ", ") + "]";
+        Object[] filteredArgs = new Object[args.length];
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] instanceof HttpServletRequest) {
+                filteredArgs[i] = "HttpServletRequest";
+            } else {
+                filteredArgs[i] = args[i];
+            }
+        }
+        String reqParam = "[" + StringUtils.join(filteredArgs, ", ") + "]";
         // 输出请求日志
         log.info("request start，id: {}, path: {}, ip: {}, params: {}", requestId, url,
                 httpServletRequest.getRemoteHost(), reqParam);

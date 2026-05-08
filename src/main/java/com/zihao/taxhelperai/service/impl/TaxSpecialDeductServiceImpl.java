@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -144,7 +145,19 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
         deductRuleEngine.executeValidate(3, context);
         BigDecimal amount = deductRuleEngine.executeCalculate(3, context);
 
-        return saveDeductWithDetail(userId, 3, dto.getStartDate(), dto.getEndDate(), amount, null, null, null, null, null, dto);
+        // 将费用发生年份转换为具体的日期范围（当年1月1日到12月31日）
+        Date startDate = dto.getStartDate();
+        Date endDate = dto.getEndDate();
+        
+        if (dto.getYear() != null && startDate == null) {
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(dto.getYear(), 0, 1, 0, 0, 0);
+            startDate = calendar.getTime();
+            calendar.set(dto.getYear(), 11, 31, 23, 59, 59);
+            endDate = calendar.getTime();
+        }
+
+        return saveDeductWithDetail(userId, 3, startDate, endDate, amount, null, null, null, null, null, dto);
     }
 
     private TaxSpecialDeduct saveDeductWithDetail(Long userId, Integer type, Date startDate, Date endDate, 
@@ -288,13 +301,57 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
     @Override
     public BigDecimal getCurrentDeductAmount(Long userId) {
         QueryWrapper<TaxSpecialDeduct> wrapper = new QueryWrapper<>();
-        wrapper.eq("user_id", userId).eq("status", 1).eq("is_delete", 0);
+        wrapper.eq("user_id", userId).eq("is_delete", 0);
         List<TaxSpecialDeduct> deducts = this.list(wrapper);
 
         BigDecimal total = BigDecimal.ZERO;
+        Date now = new Date();
         for (TaxSpecialDeduct deduct : deducts) {
-            BigDecimal amount = getMonthlyAmount(deduct.getId(), deduct.getDeductType());
-            total = total.add(amount);
+            // 检查日期范围是否有效（当前日期在开始日期之后，结束日期之前或未设置结束日期）
+            boolean isEffective = false;
+            if (deduct.getStartDate() != null && now.after(deduct.getStartDate())) {
+                if (deduct.getEndDate() == null || now.before(deduct.getEndDate())) {
+                    isEffective = true;
+                }
+            }
+            if (isEffective) {
+                BigDecimal amount = getMonthlyAmount(deduct.getId(), deduct.getDeductType());
+                total = total.add(amount);
+            }
+        }
+        return total;
+    }
+
+    @Override
+    public BigDecimal getDeductAmountByYearMonth(Long userId, Integer year, Integer month) {
+        QueryWrapper<TaxSpecialDeduct> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId).eq("is_delete", 0);
+        List<TaxSpecialDeduct> deducts = this.list(wrapper);
+
+        BigDecimal total = BigDecimal.ZERO;
+        
+        // 创建计税年月的日期（当月第一天）
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(year, month - 1, 1);
+        Date targetDate = calendar.getTime();
+
+        for (TaxSpecialDeduct deduct : deducts) {
+            // 大病医疗（类型3）不在月度预扣预缴中扣除，仅在年度汇算时扣除
+            if (deduct.getDeductType() == 3) {
+                continue;
+            }
+            
+            // 检查计税年月是否在扣除记录的日期范围内
+            boolean isEffective = false;
+            if (deduct.getStartDate() != null && targetDate.after(deduct.getStartDate())) {
+                if (deduct.getEndDate() == null || targetDate.before(deduct.getEndDate())) {
+                    isEffective = true;
+                }
+            }
+            if (isEffective) {
+                BigDecimal amount = getMonthlyAmount(deduct.getId(), deduct.getDeductType());
+                total = total.add(amount);
+            }
         }
         return total;
     }
@@ -326,9 +383,13 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
 
     private Integer calculateStatus(Date startDate, Date endDate) {
         Date now = new Date();
+        // 如果开始日期为空，默认为立即生效
+        if (startDate == null) {
+            startDate = now;
+        }
         if (now.before(startDate)) {
             return 0;
-        } else if (now.after(endDate)) {
+        } else if (endDate != null && now.after(endDate)) {
             return 2;
         } else {
             return 1;

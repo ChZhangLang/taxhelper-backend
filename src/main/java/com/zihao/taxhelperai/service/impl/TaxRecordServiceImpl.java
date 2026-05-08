@@ -15,8 +15,8 @@ import com.zihao.taxhelperai.model.vo.TaxCalculateVO;
 import com.zihao.taxhelperai.model.vo.TaxRecordVO;
 import com.zihao.taxhelperai.model.vo.TaxStatsVO;
 import com.zihao.taxhelperai.model.vo.TaxSettlementVO;
-import com.zihao.taxhelperai.service.SpecialDeductionService;
 import com.zihao.taxhelperai.service.TaxRecordService;
+import com.zihao.taxhelperai.service.TaxSpecialDeductService;
 import com.zihao.taxhelperai.service.UserService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -40,7 +40,7 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
     private static final BigDecimal ANNUAL_THRESHOLD = new BigDecimal("60000");
 
     @Autowired
-    private SpecialDeductionService specialDeductionService;
+    private TaxSpecialDeductService taxSpecialDeductService;
 
     @Autowired
     private UserService userService;
@@ -58,7 +58,7 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         ThrowUtils.throwIf(!calcType.equals(1) && !calcType.equals(2),
                 ErrorCode.PARAMS_ERROR, "计算类型只能是1（月薪）或2（年度汇算）");
 
-        BigDecimal deduct = specialDeductionService.getCurrentDeductionAmount(userId);
+        BigDecimal deduct = taxSpecialDeductService.getCurrentDeductAmount(userId);
         if (deduct == null) {
             deduct = BigDecimal.ZERO;
         }
@@ -109,7 +109,12 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         Integer month = request.getMonth();
         BigDecimal income = request.getIncome();
         BigDecimal insurance = request.getInsurance();
-        BigDecimal deduct = request.getDeduct() != null ? request.getDeduct() : BigDecimal.ZERO;
+        
+        // 获取用户在指定年月的专项附加扣除金额
+        BigDecimal deduct = taxSpecialDeductService.getDeductAmountByYearMonth(userId, year, month);
+        if (deduct == null) {
+            deduct = BigDecimal.ZERO;
+        }
 
         ThrowUtils.throwIf(income.compareTo(BigDecimal.ZERO) <= 0,
                 ErrorCode.PARAMS_ERROR, "收入金额必须大于0");

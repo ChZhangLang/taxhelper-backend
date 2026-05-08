@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/tax/special-deduct")
+@RequestMapping("/tax/special-deduct")
 public class TaxSpecialDeductController {
 
     private final TaxSpecialDeductService taxSpecialDeductService;
@@ -85,9 +85,21 @@ public class TaxSpecialDeductController {
     }
 
     @GetMapping("/amount")
-    public BaseResponse<BigDecimal> getCurrentDeductAmount(HttpServletRequest request) {
+    public BaseResponse<BigDecimal> getCurrentDeductAmount(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            HttpServletRequest request) {
         User user = userService.getLoginUser(request);
-        BigDecimal amount = taxSpecialDeductService.getCurrentDeductAmount(user.getId());
+        BigDecimal amount;
+        
+        // 如果提供了年份和月份，获取该年月的扣除金额
+        if (year != null && month != null) {
+            amount = taxSpecialDeductService.getDeductAmountByYearMonth(user.getId(), year, month);
+        } else {
+            // 否则获取当前生效的扣除金额
+            amount = taxSpecialDeductService.getCurrentDeductAmount(user.getId());
+        }
+        
         return ResultUtils.success(amount);
     }
 }
