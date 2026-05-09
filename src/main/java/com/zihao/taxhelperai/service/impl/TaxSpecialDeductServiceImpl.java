@@ -307,10 +307,10 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
         BigDecimal total = BigDecimal.ZERO;
         Date now = new Date();
         for (TaxSpecialDeduct deduct : deducts) {
-            // 检查日期范围是否有效（当前日期在开始日期之后，结束日期之前或未设置结束日期）
+            // 检查日期范围是否有效（当前日期在开始日期之后或相等，结束日期之前或未设置结束日期）
             boolean isEffective = false;
-            if (deduct.getStartDate() != null && now.after(deduct.getStartDate())) {
-                if (deduct.getEndDate() == null || now.before(deduct.getEndDate())) {
+            if (deduct.getStartDate() != null && !now.before(deduct.getStartDate())) {
+                if (deduct.getEndDate() == null || !now.after(deduct.getEndDate())) {
                     isEffective = true;
                 }
             }
@@ -343,8 +343,8 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
             
             // 检查计税年月是否在扣除记录的日期范围内
             boolean isEffective = false;
-            if (deduct.getStartDate() != null && targetDate.after(deduct.getStartDate())) {
-                if (deduct.getEndDate() == null || targetDate.before(deduct.getEndDate())) {
+            if (deduct.getStartDate() != null && !targetDate.before(deduct.getStartDate())) {
+                if (deduct.getEndDate() == null || !targetDate.after(deduct.getEndDate())) {
                     isEffective = true;
                 }
             }
