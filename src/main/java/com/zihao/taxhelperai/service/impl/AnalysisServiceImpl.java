@@ -29,9 +29,6 @@ public class AnalysisServiceImpl implements AnalysisService {
     private UserMapper userMapper;
 
     @Autowired
-    private PolicyMapper policyMapper;
-
-    @Autowired
     private DeductChildEducationMapper childEducationMapper;
 
     @Autowired
@@ -479,55 +476,6 @@ public class AnalysisServiceImpl implements AnalysisService {
         dist.setIncomeRange(range);
         dist.setUserCount(count);
         return dist;
-    }
-
-    @Override
-    public List<AnalysisVO.PolicyStats> getPolicyStats() {
-        List<AnalysisVO.PolicyStats> stats = new ArrayList<>();
-        
-        QueryWrapper<Policy> policyWrapper = new QueryWrapper<>();
-        policyWrapper.eq("isDelete", 0)
-                .orderByDesc("createTime")
-                .last("LIMIT 10");
-        
-        List<Policy> policies = policyMapper.selectList(policyWrapper);
-        
-        long baseViewCount = 100;
-        for (int i = 0; i < policies.size(); i++) {
-            Policy policy = policies.get(i);
-            AnalysisVO.PolicyStats stat = new AnalysisVO.PolicyStats();
-            stat.setPolicyTitle(policy.getTitle());
-            long viewCount = baseViewCount + (policies.size() - i) * 10;
-            stat.setViewCount(viewCount);
-            stat.setClickCount(viewCount / 2);
-            stats.add(stat);
-        }
-        
-        stats.sort((a, b) -> Long.compare(b.getViewCount(), a.getViewCount()));
-        
-        return stats;
-    }
-
-    @Override
-    public List<AnalysisVO.UserBehaviorStats> getUserBehaviorTrend(Integer days) {
-        List<AnalysisVO.UserBehaviorStats> trends = new ArrayList<>();
-        
-        LocalDate today = LocalDate.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        
-        Random random = new Random();
-        for (int i = days - 1; i >= 0; i--) {
-            LocalDate date = today.minusDays(i);
-            AnalysisVO.UserBehaviorStats stat = new AnalysisVO.UserBehaviorStats();
-            stat.setDate(date.format(formatter));
-            stat.setLoginCount((long) (random.nextInt(100) + 20));
-            stat.setQueryCount((long) (random.nextInt(80) + 10));
-            stat.setCalculateCount((long) (random.nextInt(50) + 5));
-            stat.setDeductUpdateCount((long) (random.nextInt(30) + 2));
-            trends.add(stat);
-        }
-        
-        return trends;
     }
 
     @Override

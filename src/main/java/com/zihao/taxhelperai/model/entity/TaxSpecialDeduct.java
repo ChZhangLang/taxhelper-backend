@@ -38,5 +38,23 @@ public class TaxSpecialDeduct implements Serializable {
     private Integer isDelete;
 
     @TableField(exist = false)
+    private java.math.BigDecimal childEducationAmount;
+
+    @TableField(exist = false)
+    private java.math.BigDecimal continueEducationAmount;
+
+    @TableField(exist = false)
+    private java.math.BigDecimal houseLoanAmount;
+
+    @TableField(exist = false)
+    private java.math.BigDecimal houseRentAmount;
+
+    @TableField(exist = false)
+    private java.math.BigDecimal elderSupportAmount;
+
+    @TableField(exist = false)
+    private java.math.BigDecimal seriousIllnessAmount;
+
+    @TableField(exist = false)
     private static final long serialVersionUID = 1L;
 }

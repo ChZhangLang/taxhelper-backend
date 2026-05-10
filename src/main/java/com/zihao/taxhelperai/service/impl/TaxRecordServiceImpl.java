@@ -476,6 +476,11 @@ public class TaxRecordServiceImpl extends ServiceImpl<TaxRecordMapper, TaxRecord
         return statsVO;
     }
 
+    @Override
+    public List<TaxRecord> getRecordsByUserIdAndYear(Long userId, Integer year) {
+        return baseMapper.selectYearRecords(userId, year);
+    }
+
     private BigDecimal getMonthlyTaxRate(BigDecimal taxableIncome) {
         if (taxableIncome.compareTo(new BigDecimal("3000")) <= 0) {
             return new BigDecimal("0.03");

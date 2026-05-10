@@ -75,22 +75,6 @@ public class AnalysisVO implements Serializable {
     }
 
     @Data
-    public static class PolicyStats implements Serializable {
-        private String policyTitle;
-        private Long viewCount;
-        private Long clickCount;
-    }
-
-    @Data
-    public static class UserBehaviorStats implements Serializable {
-        private String date;
-        private Long loginCount;
-        private Long queryCount;
-        private Long calculateCount;
-        private Long deductUpdateCount;
-    }
-
-    @Data
     public static class CityTaxStats implements Serializable {
         private String city;
         private BigDecimal totalTax;

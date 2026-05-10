@@ -76,21 +76,6 @@ public class AnalysisController {
         return ResultUtils.success(distribution);
     }
 
-    @GetMapping("/platform/policy-stats")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<List<AnalysisVO.PolicyStats>> getPolicyStats() {
-        List<AnalysisVO.PolicyStats> stats = analysisService.getPolicyStats();
-        return ResultUtils.success(stats);
-    }
-
-    @GetMapping("/platform/behavior-trend")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<List<AnalysisVO.UserBehaviorStats>> getUserBehaviorTrend(
-            @RequestParam(defaultValue = "7") Integer days) {
-        List<AnalysisVO.UserBehaviorStats> trend = analysisService.getUserBehaviorTrend(days);
-        return ResultUtils.success(trend);
-    }
-
     @GetMapping("/platform/city-tax")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<List<AnalysisVO.CityTaxStats>> getCityTaxStats() {

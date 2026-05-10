@@ -356,6 +356,80 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
         return total;
     }
 
+    @Override
+    public TaxSpecialDeduct getByUserIdAndYear(Long userId, Integer year) {
+        // 查询用户所有有效的专项附加扣除记录
+        QueryWrapper<TaxSpecialDeduct> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId).eq("is_delete", 0);
+        List<TaxSpecialDeduct> deducts = this.list(wrapper);
+        
+        // 如果没有记录，返回null
+        if (deducts == null || deducts.isEmpty()) {
+            return null;
+        }
+        
+        // 构建一个汇总的专项附加扣除信息
+        TaxSpecialDeduct summary = new TaxSpecialDeduct();
+        summary.setUserId(userId);
+        
+        // 汇总各类扣除金额
+        java.math.BigDecimal childEducationAmount = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal continueEducationAmount = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal houseLoanAmount = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal houseRentAmount = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal elderSupportAmount = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal seriousIllnessAmount = java.math.BigDecimal.ZERO;
+        
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(year, 0, 1);
+        Date yearStart = calendar.getTime();
+        calendar.set(year, 11, 31);
+        Date yearEnd = calendar.getTime();
+        
+        for (TaxSpecialDeduct deduct : deducts) {
+            boolean isEffective = false;
+            if (deduct.getStartDate() != null && !yearEnd.before(deduct.getStartDate())) {
+                if (deduct.getEndDate() == null || !yearStart.after(deduct.getEndDate())) {
+                    isEffective = true;
+                }
+            }
+            
+            if (isEffective) {
+                java.math.BigDecimal amount = getMonthlyAmount(deduct.getId(), deduct.getDeductType());
+                switch (deduct.getDeductType()) {
+                    case 1:
+                        childEducationAmount = childEducationAmount.add(amount);
+                        break;
+                    case 2:
+                        continueEducationAmount = continueEducationAmount.add(amount);
+                        break;
+                    case 3:
+                        seriousIllnessAmount = seriousIllnessAmount.add(amount);
+                        break;
+                    case 4:
+                        houseLoanAmount = houseLoanAmount.add(amount);
+                        break;
+                    case 5:
+                        houseRentAmount = houseRentAmount.add(amount);
+                        break;
+                    case 6:
+                        elderSupportAmount = elderSupportAmount.add(amount);
+                        break;
+                }
+            }
+        }
+        
+        // 设置汇总金额到返回对象
+        summary.setChildEducationAmount(childEducationAmount);
+        summary.setContinueEducationAmount(continueEducationAmount);
+        summary.setHouseLoanAmount(houseLoanAmount);
+        summary.setHouseRentAmount(houseRentAmount);
+        summary.setElderSupportAmount(elderSupportAmount);
+        summary.setSeriousIllnessAmount(seriousIllnessAmount);
+        
+        return summary;
+    }
+
     private BigDecimal getMonthlyAmount(Long deductId, Integer type) {
         switch (type) {
             case 1:

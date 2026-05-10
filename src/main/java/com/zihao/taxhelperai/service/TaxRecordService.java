@@ -90,4 +90,13 @@ public interface TaxRecordService extends IService<TaxRecord> {
      * @return 统计VO
      */
     TaxStatsVO getTaxStats();
+
+    /**
+     * 获取用户指定年度的计税记录列表
+     *
+     * @param userId 用户ID
+     * @param year 年度
+     * @return 计税记录列表
+     */
+    java.util.List<com.zihao.taxhelperai.model.entity.TaxRecord> getRecordsByUserIdAndYear(Long userId, Integer year);
 }

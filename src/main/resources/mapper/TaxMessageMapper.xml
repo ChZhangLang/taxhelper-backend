@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zihao.taxhelperai.mapper.TaxMessageMapper">
+
+    <sql id="baseColumns">
+        id, user_id, title, content, message_type, message_level, is_read, create_time, update_time
+    </sql>
+
+    <select id="selectUserMessages" resultType="com.zihao.taxhelperai.model.entity.TaxMessage">
+        SELECT <include refid="baseColumns"/>
+        FROM tax_message
+        WHERE user_id = #{userId}
+          AND is_delete = 0
+          <if test="messageType != null and messageType != ''">
+              AND message_type = #{messageType}
+          </if>
+          <if test="isRead != null">
+              AND is_read = #{isRead}
+          </if>
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="countUnreadMessages" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM tax_message
+        WHERE user_id = #{userId}
+          AND is_read = 0
+          AND is_delete = 0
+    </select>
+
+    <update id="batchUpdateReadStatus">
+        UPDATE tax_message
+        SET is_read = 1, update_time = NOW()
+        WHERE user_id = #{userId}
+          AND id IN
+          <foreach collection="messageIds" item="id" open="(" separator="," close=")">
+              #{id}
+          </foreach>
+          AND is_delete = 0
+    </update>
+
+    <update id="markAllAsRead">
+        UPDATE tax_message
+        SET is_read = 1, update_time = NOW()
+        WHERE user_id = #{userId}
+          AND is_read = 0
+          AND is_delete = 0
+    </update>
+
+</mapper>

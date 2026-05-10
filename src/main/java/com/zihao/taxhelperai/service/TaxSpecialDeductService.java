@@ -37,4 +37,12 @@ public interface TaxSpecialDeductService {
      * @return 扣除金额
      */
     BigDecimal getDeductAmountByYearMonth(Long userId, Integer year, Integer month);
+
+    /**
+     * 获取用户在指定年度的专项附加扣除汇总信息
+     * @param userId 用户ID
+     * @param year 年份
+     * @return 专项附加扣除汇总
+     */
+    TaxSpecialDeduct getByUserIdAndYear(Long userId, Integer year);
 }

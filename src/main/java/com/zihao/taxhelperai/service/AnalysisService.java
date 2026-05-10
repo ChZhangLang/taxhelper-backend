@@ -18,9 +18,5 @@ public interface AnalysisService {
 
     List<AnalysisVO.IncomeDistribution> getIncomeDistribution();
 
-    List<AnalysisVO.PolicyStats> getPolicyStats();
-
-    List<AnalysisVO.UserBehaviorStats> getUserBehaviorTrend(Integer days);
-
     List<AnalysisVO.CityTaxStats> getCityTaxStats();
 }
