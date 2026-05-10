@@ -65,4 +65,14 @@ public interface TaxRecordMapper extends BaseMapper<TaxRecord> {
      * 获取用户指定年度所有月度记录
      */
     List<TaxRecord> selectYearRecords(@Param("userId") Long userId, @Param("taxYear") Integer taxYear);
+
+    /**
+     * 统计收入在指定范围内的记录数
+     */
+    long countByIncomeRange(@Param("minIncome") BigDecimal minIncome, @Param("maxIncome") BigDecimal maxIncome);
+
+    /**
+     * 按城市维度汇总税收
+     */
+    List<TaxStatsVO.CityTaxSummary> selectCityTaxSummary();
 }

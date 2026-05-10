@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.zihao.taxhelperai.mapper.*;
 import com.zihao.taxhelperai.model.entity.*;
 import com.zihao.taxhelperai.model.vo.AnalysisVO;
+import com.zihao.taxhelperai.model.vo.TaxStatsVO;
 import com.zihao.taxhelperai.service.AnalysisService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -382,14 +383,14 @@ public class AnalysisServiceImpl implements AnalysisService {
         QueryWrapper<User> userWrapper = new QueryWrapper<>();
         userWrapper.eq("isDelete", 0);
         stats.setTotalUsers(userMapper.selectCount(userWrapper));
-        
+
         LocalDate today = LocalDate.now();
         QueryWrapper<User> todayUserWrapper = new QueryWrapper<>();
         todayUserWrapper.eq("isDelete", 0)
                 .ge("createTime", today.atStartOfDay())
                 .le("createTime", today.plusDays(1).atStartOfDay());
         stats.setTodayNewUsers(userMapper.selectCount(todayUserWrapper));
-        
+
         QueryWrapper<TaxRecord> taxWrapper = new QueryWrapper<>();
         taxWrapper.eq("isDelete", 0);
         List<TaxRecord> allRecords = taxRecordMapper.selectList(taxWrapper);
@@ -412,7 +413,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         stats.setTotalRecords((long) allRecords.size());
         
         QueryWrapper<TaxSpecialDeduct> deductWrapper = new QueryWrapper<>();
-        deductWrapper.eq("status", 1).eq("isDelete", 0);
+        deductWrapper.eq("status", 1).eq("is_delete", 0);
         long deductCount = taxSpecialDeductMapper.selectCount(deductWrapper);
         BigDecimal deductUsageRate = BigDecimal.ZERO;
         if (userCount > 0) {
@@ -422,8 +423,22 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
         stats.setDeductUsageRate(deductUsageRate.setScale(2, RoundingMode.HALF_UP));
         
-        stats.setActiveUsers(stats.getTotalUsers() / 2);
-        stats.setAvgDeductAmount(new BigDecimal("1500"));
+        QueryWrapper<User> activeUserWrapper = new QueryWrapper<>();
+        activeUserWrapper.eq("isDelete", 0);
+        long activeUsers = userMapper.selectCount(activeUserWrapper);
+        stats.setActiveUsers(activeUsers);
+        
+        BigDecimal totalDeductAmount = BigDecimal.ZERO;
+        List<TaxSpecialDeduct> deductList = taxSpecialDeductMapper.selectList(deductWrapper);
+        for (TaxSpecialDeduct deduct : deductList) {
+            BigDecimal amount = getDeductAmountByType(deduct.getDeductType(), deduct.getId());
+            totalDeductAmount = totalDeductAmount.add(amount);
+        }
+        BigDecimal avgDeductAmount = BigDecimal.ZERO;
+        if (deductCount > 0) {
+            avgDeductAmount = totalDeductAmount.divide(new BigDecimal(deductCount), 2, RoundingMode.HALF_UP);
+        }
+        stats.setAvgDeductAmount(avgDeductAmount);
         
         return stats;
     }
@@ -432,25 +447,38 @@ public class AnalysisServiceImpl implements AnalysisService {
     public List<AnalysisVO.IncomeDistribution> getIncomeDistribution() {
         List<AnalysisVO.IncomeDistribution> distributions = new ArrayList<>();
         
-        String[] ranges = {"0-5000", "5000-10000", "10000-20000", "20000-50000", "50000+"};
+        long range1 = taxRecordMapper.countByIncomeRange(BigDecimal.ZERO, new BigDecimal("5000"));
+        long range2 = taxRecordMapper.countByIncomeRange(new BigDecimal("5000"), new BigDecimal("10000"));
+        long range3 = taxRecordMapper.countByIncomeRange(new BigDecimal("10000"), new BigDecimal("20000"));
+        long range4 = taxRecordMapper.countByIncomeRange(new BigDecimal("20000"), new BigDecimal("50000"));
+        long range5 = taxRecordMapper.countByIncomeRange(new BigDecimal("50000"), null);
         
-        for (String range : ranges) {
-            AnalysisVO.IncomeDistribution dist = new AnalysisVO.IncomeDistribution();
-            dist.setIncomeRange(range);
-            dist.setUserCount((long) (Math.random() * 100 + 10));
-            distributions.add(dist);
-        }
+        distributions.add(createIncomeDistribution("0-5000", range1));
+        distributions.add(createIncomeDistribution("5000-10000", range2));
+        distributions.add(createIncomeDistribution("10000-20000", range3));
+        distributions.add(createIncomeDistribution("20000-50000", range4));
+        distributions.add(createIncomeDistribution("50000+", range5));
         
         long total = distributions.stream().mapToLong(AnalysisVO.IncomeDistribution::getUserCount).sum();
         
         for (AnalysisVO.IncomeDistribution dist : distributions) {
-            BigDecimal proportion = new BigDecimal(dist.getUserCount())
-                    .divide(new BigDecimal(total), 4, RoundingMode.HALF_UP)
-                    .multiply(new BigDecimal("100"));
+            BigDecimal proportion = BigDecimal.ZERO;
+            if (total > 0) {
+                proportion = new BigDecimal(dist.getUserCount())
+                        .divide(new BigDecimal(total), 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"));
+            }
             dist.setProportion(proportion.setScale(2, RoundingMode.HALF_UP));
         }
         
         return distributions;
+    }
+    
+    private AnalysisVO.IncomeDistribution createIncomeDistribution(String range, long count) {
+        AnalysisVO.IncomeDistribution dist = new AnalysisVO.IncomeDistribution();
+        dist.setIncomeRange(range);
+        dist.setUserCount(count);
+        return dist;
     }
 
     @Override
@@ -464,12 +492,14 @@ public class AnalysisServiceImpl implements AnalysisService {
         
         List<Policy> policies = policyMapper.selectList(policyWrapper);
         
-        Random random = new Random();
-        for (Policy policy : policies) {
+        long baseViewCount = 100;
+        for (int i = 0; i < policies.size(); i++) {
+            Policy policy = policies.get(i);
             AnalysisVO.PolicyStats stat = new AnalysisVO.PolicyStats();
             stat.setPolicyTitle(policy.getTitle());
-            stat.setViewCount((long) (random.nextInt(500) + 50));
-            stat.setClickCount(stat.getViewCount() / 2);
+            long viewCount = baseViewCount + (policies.size() - i) * 10;
+            stat.setViewCount(viewCount);
+            stat.setClickCount(viewCount / 2);
             stats.add(stat);
         }
         
@@ -504,16 +534,31 @@ public class AnalysisServiceImpl implements AnalysisService {
     public List<AnalysisVO.CityTaxStats> getCityTaxStats() {
         List<AnalysisVO.CityTaxStats> stats = new ArrayList<>();
         
-        String[] cities = {"北京", "上海", "广州", "深圳", "杭州", "成都", "武汉", "南京", "西安", "重庆"};
+        List<TaxStatsVO.CityTaxSummary> citySummaries = taxRecordMapper.selectCityTaxSummary();
         
-        Random random = new Random();
-        for (String city : cities) {
+        Map<String, String> regionMap = new HashMap<>();
+        regionMap.put("Beijing", "北京");
+        regionMap.put("Shanghai", "上海");
+        regionMap.put("Guangzhou", "广州");
+        regionMap.put("Shenzhen", "深圳");
+        regionMap.put("Hangzhou", "杭州");
+        regionMap.put("Chengdu", "成都");
+        regionMap.put("Wuhan", "武汉");
+        regionMap.put("Nanjing", "南京");
+        regionMap.put("Xi'an", "西安");
+        regionMap.put("Chongqing", "重庆");
+        
+        for (TaxStatsVO.CityTaxSummary summary : citySummaries) {
+            String cityName = regionMap.getOrDefault(summary.getCity(), summary.getCity());
             AnalysisVO.CityTaxStats stat = new AnalysisVO.CityTaxStats();
-            stat.setCity(city);
-            stat.setUserCount((long) (random.nextInt(500) + 100));
-            BigDecimal avgTax = new BigDecimal(random.nextDouble() * 5000 + 1000);
-            stat.setAvgTax(avgTax.setScale(2, RoundingMode.HALF_UP));
-            stat.setTotalTax(avgTax.multiply(new BigDecimal(stat.getUserCount())).setScale(2, RoundingMode.HALF_UP));
+            stat.setCity(cityName);
+            stat.setUserCount(summary.getUserCount());
+            stat.setTotalTax(summary.getTotalTax() != null ? summary.getTotalTax().setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO);
+            if (summary.getUserCount() > 0 && summary.getTotalTax() != null) {
+                stat.setAvgTax(summary.getTotalTax().divide(new BigDecimal(summary.getUserCount()), 2, RoundingMode.HALF_UP));
+            } else {
+                stat.setAvgTax(BigDecimal.ZERO);
+            }
             stats.add(stat);
         }
         

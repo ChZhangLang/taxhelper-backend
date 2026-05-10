@@ -90,4 +90,25 @@ public class TaxStatsVO implements Serializable {
          */
         private BigDecimal totalTax;
     }
+
+    /**
+     * 城市税收汇总
+     */
+    @Data
+    public static class CityTaxSummary implements Serializable {
+        /**
+         * 城市名称
+         */
+        private String city;
+
+        /**
+         * 用户数量
+         */
+        private Long userCount;
+
+        /**
+         * 总税额
+         */
+        private BigDecimal totalTax;
+    }
 }

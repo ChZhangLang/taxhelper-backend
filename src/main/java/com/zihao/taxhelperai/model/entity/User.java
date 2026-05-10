@@ -65,7 +65,8 @@ public class User implements Serializable {
     /**
      * 逻辑删除 0-未删除 1-已删除
      */
-    @TableLogic
+    @TableLogic(value = "0", delval = "1")
+    @TableField("isDelete")
     private Integer isDelete;
 
     @TableField(exist = false)

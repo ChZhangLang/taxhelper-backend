@@ -122,4 +122,31 @@
           AND isDelete = 0
         ORDER BY taxMonth ASC
     </select>
+
+    <select id="countByIncomeRange" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+            SELECT userId, AVG(income) as avg_income
+            FROM tax_record
+            WHERE isDelete = 0 AND taxMonth != 0
+            GROUP BY userId
+        ) AS user_avg
+        WHERE avg_income >= #{minIncome}
+          <if test="maxIncome != null">
+            AND avg_income <![CDATA[<]]> #{maxIncome}
+          </if>
+    </select>
+
+    <select id="selectCityTaxSummary" resultType="com.zihao.taxhelperai.model.vo.TaxStatsVO$CityTaxSummary">
+        SELECT
+            u.taxRegion as city,
+            COUNT(DISTINCT tr.userId) as userCount,
+            COALESCE(SUM(tr.taxAmount), 0) as totalTax
+        FROM tax_record tr
+        LEFT JOIN user u ON tr.userId = u.id
+        WHERE tr.isDelete = 0 AND u.isDelete = 0
+        GROUP BY u.taxRegion
+        ORDER BY totalTax DESC
+        LIMIT 10
+    </select>
 </mapper>
