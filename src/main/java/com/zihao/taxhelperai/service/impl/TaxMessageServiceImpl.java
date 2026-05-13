@@ -31,8 +31,19 @@ public class TaxMessageServiceImpl extends ServiceImpl<TaxMessageMapper, TaxMess
         message.setIsDelete(0);
         message.setCreateTime(new Date());
         message.setUpdateTime(new Date());
+        
+        // 确保消息等级被设置
+        if (message.getMessageLevel() == null || message.getMessageLevel().trim().isEmpty()) {
+            message.setMessageLevel(TaxMessage.MessageLevel.MEDIUM.name());
+        }
+        
+        // 确保消息类型被设置
+        if (message.getMessageType() == null || message.getMessageType().trim().isEmpty()) {
+            message.setMessageType(TaxMessage.MessageType.SYSTEM.name());
+        }
+        
         if (save(message)) {
-            log.info("创建消息成功: userId={}, type={}", message.getUserId(), message.getMessageType());
+            log.info("创建消息成功: userId={}, type={}, level={}", message.getUserId(), message.getMessageType(), message.getMessageLevel());
             return message;
         }
         return null;

@@ -45,4 +45,12 @@ public interface TaxSpecialDeductService {
      * @return 专项附加扣除汇总
      */
     TaxSpecialDeduct getByUserIdAndYear(Long userId, Integer year);
+
+    /**
+     * 获取用户在指定年度的填报记录列表
+     * @param userId 用户ID
+     * @param year 年份
+     * @return 填报记录列表
+     */
+    List<TaxSpecialDeductVO> getFilingRecordsByYear(Long userId, Integer year);
 }

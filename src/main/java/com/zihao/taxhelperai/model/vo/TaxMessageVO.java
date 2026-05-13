@@ -89,14 +89,16 @@ public class TaxMessageVO implements Serializable {
 
         // 设置等级描述
         try {
-            if (entity.getMessageLevel() != null) {
-                TaxMessage.MessageLevel level = TaxMessage.MessageLevel.valueOf(entity.getMessageLevel());
+            if (entity.getMessageLevel() != null && !entity.getMessageLevel().trim().isEmpty()) {
+                // 转换为大写并去除空格，确保大小写兼容
+                String levelStr = entity.getMessageLevel().trim().toUpperCase();
+                TaxMessage.MessageLevel level = TaxMessage.MessageLevel.valueOf(levelStr);
                 vo.setMessageLevelDesc(level.getDescription());
             } else {
                 vo.setMessageLevelDesc("未知等级");
             }
         } catch (IllegalArgumentException e) {
-            vo.setMessageLevelDesc(entity.getMessageLevel());
+            vo.setMessageLevelDesc("未知等级");
         }
 
         return vo;

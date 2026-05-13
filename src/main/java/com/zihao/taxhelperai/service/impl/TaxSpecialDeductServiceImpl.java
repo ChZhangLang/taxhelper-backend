@@ -469,4 +469,42 @@ public class TaxSpecialDeductServiceImpl extends ServiceImpl<TaxSpecialDeductMap
             return 1;
         }
     }
+
+    @Override
+    public List<TaxSpecialDeductVO> getFilingRecordsByYear(Long userId, Integer year) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(year, 0, 1);
+        Date yearStart = calendar.getTime();
+        calendar.set(year, 11, 31, 23, 59, 59);
+        Date yearEnd = calendar.getTime();
+
+        QueryWrapper<TaxSpecialDeduct> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId)
+               .eq("is_delete", 0)
+               .orderByDesc("start_date");
+        
+        return this.list(wrapper).stream()
+                .filter(deduct -> {
+                    Date startDate = deduct.getStartDate();
+                    Date endDate = deduct.getEndDate();
+                    
+                    if (startDate == null) {
+                        startDate = deduct.getCreateTime();
+                    }
+                    
+                    if (endDate == null) {
+                        endDate = new Date(Long.MAX_VALUE);
+                    }
+                    
+                    return !(endDate.before(yearStart) || startDate.after(yearEnd));
+                })
+                .map(deduct -> {
+                    TaxSpecialDeductVO vo = TaxSpecialDeductVO.objToVo(deduct);
+                    if (vo != null) {
+                        vo.setAmount(getMonthlyAmount(deduct.getId(), deduct.getDeductType()));
+                    }
+                    return vo;
+                })
+                .collect(Collectors.toList());
+    }
 }

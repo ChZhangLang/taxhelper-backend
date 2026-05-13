@@ -19,6 +19,8 @@ public class TaxSpecialDeductVO {
 
     private BigDecimal monthlyAmount;
 
+    private BigDecimal amount;
+
     private Date startDate;
 
     private Date endDate;

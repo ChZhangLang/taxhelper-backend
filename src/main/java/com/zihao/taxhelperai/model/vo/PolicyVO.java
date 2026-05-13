@@ -16,6 +16,8 @@ public class PolicyVO {
     private String title;
     /** 政策内容 */
     private String content;
+    /** 政策类型 1-基础政策 2-扣除标准 3-申报流程 */
+    private Integer type;
     /** 政策类型（转中文，前端友好） */
     private String typeDesc;
     /** 创建时间 */

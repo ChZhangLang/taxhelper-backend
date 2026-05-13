@@ -102,4 +102,16 @@ public class TaxSpecialDeductController {
         
         return ResultUtils.success(amount);
     }
+
+    @GetMapping("/records")
+    public BaseResponse<List<TaxSpecialDeductVO>> getFilingRecords(
+            @RequestParam(required = false) Integer year,
+            HttpServletRequest request) {
+        User user = userService.getLoginUser(request);
+        if (year == null) {
+            year = java.time.LocalDate.now().getYear();
+        }
+        List<TaxSpecialDeductVO> records = taxSpecialDeductService.getFilingRecordsByYear(user.getId(), year);
+        return ResultUtils.success(records);
+    }
 }
